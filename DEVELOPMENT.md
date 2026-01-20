@@ -4,7 +4,7 @@ This document provides instructions for setting up and developing the PodSweeper
 
 ## Prerequisites
 
-- **Go**: Version 1.21 or higher
+- **Go**: Version 1.21 or higher (project uses Go 1.21)
 - **Docker**: For building container images
 - **Kubernetes Cluster**: For testing (minikube, kind, or k3s recommended for local development)
 - **kubectl**: Kubernetes CLI tool
