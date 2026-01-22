@@ -16,6 +16,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/zwindler/podsweeper/internal/controller"
+	"github.com/zwindler/podsweeper/pkg/game"
 )
 
 var (
@@ -30,10 +33,12 @@ func init() {
 func main() {
 	var metricsAddr string
 	var probeAddr string
+	var namespace string
 	var enableLeaderElection bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&namespace, "namespace", game.DefaultNamespace, "The namespace to watch for game pods.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -57,8 +62,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: Register pod controller for podsweeper-game namespace
-	// TODO: Register game state reconciler
+	// Create game state store (persisted in Kubernetes Secret)
+	store := game.NewSecretStore(mgr.GetClient(),
+		game.WithNamespace(namespace),
+	)
+
+	// Create and register the game controller
+	gameController := controller.NewGameController(mgr.GetClient(), controller.GameControllerConfig{
+		Namespace: namespace,
+		Store:     store,
+	})
+
+	if err := gameController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GameController")
+		os.Exit(1)
+	}
+
 	// TODO: Set up admission webhook (for levels 5+)
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -71,7 +90,7 @@ func main() {
 	}
 
 	setupLog.Info("starting gamemaster",
-		"metricsAddr", metricsAddr,
+		"namespace", namespace,
 		"probeAddr", probeAddr,
 	)
 
