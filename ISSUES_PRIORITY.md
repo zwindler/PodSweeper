@@ -1,243 +1,503 @@
-# 🎯 PodSweeper Issues Priority & Roadmap
+# PodSweeper Development Roadmap
 
-This document outlines the recommended order for tackling issues to build PodSweeper incrementally. 
+This document outlines the recommended order for building PodSweeper incrementally.
 Each phase builds on the previous one, ensuring dependencies are resolved before moving forward.
 
 ---
 
-## 📊 Summary
+## Summary
 
-| Phase | Name | Issues | Milestone |
-|-------|------|--------|-----------|
-| 1 | Foundation (MVP) | 20 | Level 0 Playable |
-| 2 | Deployment & Basic Ops | 9 | Public Alpha |
-| 3 | Admission Webhook | 6 | Webhook Ready |
-| 4 | Level Progression | 8 | Levels 0-4 Complete |
-| 5 | Security Hardening | 14 | All 10 Levels Complete |
-| 6 | Polish & Victory | 9 | Full Game Experience |
-| 7 | Documentation & Release | 6 | v1.0 Release |
-| **Total** | | **72** | |
+| Phase | Name | Tasks | Milestone |
+|-------|------|-------|-----------|
+| 1 | Foundation (MVP) | 18 | Level 0 Playable |
+| 2 | Deployment & Ops | 8 | Public Alpha |
+| 3 | Testing | 5 | Quality Gates |
+| 4 | Level Progression (0-4) | 12 | Levels 0-4 Complete |
+| 5 | Security Hardening + Webhook (5-9) | 16 | All 10 Levels Complete |
+| 6 | Polish & Victory | 7 | Full Game Experience |
+| 7 | Documentation & Release | 7 | v1.0 Release |
+| **Total** | | **73** | |
 
 ---
 
-## Phase 1: Foundation (MVP - Playable Game)
-**Goal:** Get a basic working game without levels or hardening
+## Phase 1: Foundation (MVP - Level 0 Playable)
+
+**Goal:** Get a basic working game without levels or hardening. Player can delete pods, see hints, win, or lose.
 
 **Milestone:** `Level 0 Playable`
 
-- [ ] [Core Game Engine] Project scaffolding [#1](https://github.com/zwindler/PodSweeper/issues/1)
-- [ ] [Core Game Engine] Game state data model [#3](https://github.com/zwindler/PodSweeper/issues/3)
-- [ ] [Core Game Engine] State persistence layer [#4](https://github.com/zwindler/PodSweeper/issues/4)
-- [ ] [Grid Management] Grid generator [#16](https://github.com/zwindler/PodSweeper/issues/16)
-- [ ] [Grid Management] Mine placement algorithm [#17](https://github.com/zwindler/PodSweeper/issues/17)
-- [ ] [Grid Management] Grid spawner [#18](https://github.com/zwindler/PodSweeper/issues/18)
-- [ ] [Core Game Engine] Controller bootstrap and reconciliation [#2](https://github.com/zwindler/PodSweeper/issues/2)
-- [ ] [Core Game Engine] Deletion event handler [#8](https://github.com/zwindler/PodSweeper/issues/8)
-- [ ] [Core Game Engine] Implement mine detection logic [#5](https://github.com/zwindler/PodSweeper/issues/5)
-- [ ] [Core Game Engine] Adjacent mine counter [#6](https://github.com/zwindler/PodSweeper/issues/6)
-- [ ] [Core Game Engine] BFS propagation algorithm [#7](https://github.com/zwindler/PodSweeper/issues/7)
-- [ ] [Hint Micro-Agent] HTTP server implementation [#40](https://github.com/zwindler/PodSweeper/issues/40)
-- [ ] [Hint Micro-Agent] Container image build [#43](https://github.com/zwindler/PodSweeper/issues/43)
-- [ ] [Grid Management] Hint pod template [#19](https://github.com/zwindler/PodSweeper/issues/19)
-- [ ] [Grid Management] Hint pod spawner [#20](https://github.com/zwindler/PodSweeper/issues/20)
-- [ ] [Victory/Defeat] Victory condition checker [#51](https://github.com/zwindler/PodSweeper/issues/51)
-- [ ] [Victory/Defeat] Defeat detection [#55](https://github.com/zwindler/PodSweeper/issues/55)
-- [ ] [Grid Management] Namespace wipe function [#22](https://github.com/zwindler/PodSweeper/issues/22)
-- [ ] [Game Init] Namespace initializer [#45](https://github.com/zwindler/PodSweeper/issues/45)
-- [ ] [Game Init] Game start command [#46](https://github.com/zwindler/PodSweeper/issues/46)
+### Core Infrastructure
+- [ ] Project scaffolding
+  - Initialize Go module with `controller-runtime` and `client-go`
+  - Set up directory structure: `cmd/`, `pkg/`, `internal/`
+  - Create Makefile with `build`, `test`, `run` targets
+- [ ] Structured logging setup
+  - Configure structured logging (e.g., `zap` or `logr`)
+  - Define log levels and formats for controller/webhook
+- [ ] Error handling and user feedback
+  - Define error types for game events (invalid move, game over, etc.)
+  - Ensure errors surface meaningful messages to `kubectl` users
+
+### Game State
+- [ ] Game state data model
+  - Define `GameState` struct: mine map, revealed cells, level, seed
+  - Implement JSON marshalling/unmarshalling
+  - Write unit tests for serialization
+- [ ] State persistence layer
+  - Implement read/write to Kubernetes Secret `podsweeper-state`
+  - Handle concurrent access and conflicts
+
+### Grid Management
+- [ ] Grid generator
+  - Create function to generate N×N pod specs
+  - Implement `pod-x-y` naming convention
+  - Make grid size configurable
+- [ ] Mine placement algorithm
+  - Implement seeded random mine placement
+  - Make mine density configurable
+  - Ensure reproducibility with same seed
+- [ ] Grid spawner
+  - Create pods in `podsweeper-game` namespace
+  - Handle partial failures and retries
+
+### Controller
+- [ ] Controller bootstrap and reconciliation
+  - Set up controller-runtime manager
+  - Implement Pod watcher for `podsweeper-game` namespace
+  - Basic reconciliation loop
+- [ ] Deletion event handler
+  - Detect pod deletion events
+  - Route to appropriate handler (mine/safe/empty)
+- [ ] Mine detection logic
+  - Check if deleted pod coordinates match mine map
+  - Trigger appropriate game flow
+- [ ] Adjacent mine counter
+  - Calculate number of mines in 8-cell neighborhood
+  - Handle edge/corner cases correctly
+- [ ] BFS propagation with chain deletion
+  - Implement Breadth-First Search for empty cell propagation
+  - Automatically delete connected empty pods
+  - Stop at numbered hint boundaries
+  - Create hint pods at propagation edges
+
+### Hint Micro-Agent
+- [ ] HTTP server implementation
+  - Create minimal Go HTTP server (~50 lines)
+  - Serve hint value on `/` endpoint
+  - Configurable port binding
+- [ ] Environment-based configuration
+  - Read hint value from `HINT_VALUE` env var
+  - Read coordinates from `POD_X`, `POD_Y` env vars
+  - Support dynamic port via `PORT` env var (for Level 7)
+- [ ] Container image build
+  - Create minimal Dockerfile (scratch/distroless base)
+  - Multi-stage build for small image size
+- [ ] Hint pod template
+  - Define pod spec with hint container
+  - Configure environment variables injection
+  - Set resource limits
+- [ ] Hint pod spawner
+  - Create `hint-x-y` pods after safe cell deletion
+  - Inject correct hint value based on adjacent mine count
+
+### Victory & Defeat
+- [ ] Victory condition checker
+  - Detect when all non-mine pods are cleared
+  - Compare remaining pods against mine map
+- [ ] Defeat sequence handler
+  - Detect mine pod deletion
+  - Wipe namespace (delete all game pods)
+  - Spawn explosion pod with ASCII art in logs
+
+### Game Initialization
+- [ ] Player ServiceAccount setup
+  - Create ServiceAccount for player
+  - Define base RBAC (delete pods, get pods)
+  - Generate kubeconfig for player
+- [ ] Namespace initializer
+  - Create `podsweeper-game` namespace if not exists
+  - Apply required labels and annotations
+- [ ] Game start command
+  - CLI or kubectl plugin to start new game
+  - Accept seed and difficulty parameters
 
 ---
 
 ## Phase 2: Deployment & Basic Ops
-**Goal:** Make it installable by others
+
+**Goal:** Make the game installable by others
 
 **Milestone:** `Public Alpha`
 
-- [ ] [Deployment] Gamemaster Dockerfile [#58](https://github.com/zwindler/PodSweeper/issues/58)
-- [ ] [Deployment] Gamemaster image CI [#59](https://github.com/zwindler/PodSweeper/issues/59)
-- [ ] [Hint Micro-Agent] Image CI pipeline [#44](https://github.com/zwindler/PodSweeper/issues/44)
-- [ ] [Deployment] Helm chart skeleton [#60](https://github.com/zwindler/PodSweeper/issues/60)
-- [ ] [Deployment] Helm: Gamemaster Deployment template [#61](https://github.com/zwindler/PodSweeper/issues/61)
-- [ ] [Deployment] Helm: RBAC resources [#62](https://github.com/zwindler/PodSweeper/issues/62)
-- [ ] [Game Init] Player ServiceAccount setup [#50](https://github.com/zwindler/PodSweeper/issues/50)
-- [ ] [Game Init] Game reset function [#48](https://github.com/zwindler/PodSweeper/issues/48)
-- [ ] [Documentation] Player quickstart guide [#67](https://github.com/zwindler/PodSweeper/issues/67)
+### Container Images
+- [ ] Gamemaster Dockerfile
+  - Multi-stage build for Go binary
+  - Non-root user, minimal base image
+- [ ] Gamemaster image CI
+  - GitHub Actions workflow for building/pushing
+  - Semantic versioning tags
+- [ ] Hint Micro-Agent image CI
+  - Separate workflow for hint agent image
+  - Keep image minimal (<10MB)
+
+### Gamemaster Operations
+- [ ] Gamemaster health endpoints
+  - `/healthz` for liveness probe
+  - `/readyz` for readiness probe
+  - Proper startup probe configuration
+
+### Helm Chart
+- [ ] Helm chart skeleton
+  - Chart.yaml, values.yaml structure
+  - Namespace creation option
+- [ ] Helm: Gamemaster Deployment template
+  - Deployment with configurable replicas
+  - Resource requests/limits
+  - Environment configuration
+- [ ] Helm: RBAC resources
+  - ServiceAccount for Gamemaster
+  - ClusterRole/Role for watching pods, managing secrets
+
+### Game Operations
+- [ ] Game reset function
+  - Wipe current game and start fresh
+  - Preserve or reset level progress (configurable)
 
 ---
 
-## Phase 3: Admission Webhook
-**Goal:** Enable advanced level mechanics
+## Phase 3: Testing
 
-**Milestone:** `Webhook Ready`
+**Goal:** Establish quality gates before building complex level mechanics
 
-- [ ] [Admission Webhook] Webhook server setup [#9](https://github.com/zwindler/PodSweeper/issues/9)
-- [ ] [Admission Webhook] TLS certificate management [#10](https://github.com/zwindler/PodSweeper/issues/10)
-- [ ] [Admission Webhook] ValidatingWebhookConfiguration manifest [#11](https://github.com/zwindler/PodSweeper/issues/11)
-- [ ] [Admission Webhook] Base validation logic [#12](https://github.com/zwindler/PodSweeper/issues/12)
-- [ ] [Deployment] Helm: Webhook resources [#63](https://github.com/zwindler/PodSweeper/issues/63)
-- [ ] [Deployment] Helm: Certificate management [#64](https://github.com/zwindler/PodSweeper/issues/64)
+**Milestone:** `Quality Gates`
+
+### Unit Testing
+- [ ] Unit test framework setup
+  - Configure test harness with mocks for Kubernetes client
+  - Set up test fixtures for game state
+- [ ] Controller unit tests
+  - Test mine detection logic
+  - Test BFS propagation algorithm
+  - Test victory/defeat conditions
+  - Test adjacent mine counting (edge cases)
+
+### Integration/E2E Testing
+- [ ] E2E test framework
+  - Set up kind/k3d for local cluster testing
+  - Create test harness for deploying game
+  - Implement test utilities (wait for pods, simulate clicks)
+- [ ] E2E tests for Level 0
+  - Test: Click safe cell → hint pod appears
+  - Test: Click empty cell → BFS propagation works
+  - Test: Click mine → game over sequence
+  - Test: Clear all safe cells → victory
+
+### Webhook Testing (for later phases)
+- [ ] Webhook unit tests
+  - Test validation logic (prepared for Phase 5)
+  - Test timing window validation
+  - Test finalizer validation
 
 ---
 
-## Phase 4: Level Progression System
-**Goal:** Implement the CTF path (Levels 0-4)
+## Phase 4: Level Progression (Levels 0-4)
+
+**Goal:** Implement the CTF path for early levels (no webhook required)
 
 **Milestone:** `Levels 0-4 Complete`
 
-- [ ] [Level Progression] Level state management [#24](https://github.com/zwindler/PodSweeper/issues/24)
-- [ ] [Level Progression] Level 0 setup - ConfigMap cheat [#25](https://github.com/zwindler/PodSweeper/issues/25)
-- [ ] [Level Progression] Level 1 setup - Secret cheat [#26](https://github.com/zwindler/PodSweeper/issues/26)
-- [ ] [Level Progression] Level 2 setup - Environment variable cheat [#27](https://github.com/zwindler/PodSweeper/issues/27)
-- [ ] [Level Progression] Level 3 setup - Gamemaster filesystem cheat [#28](https://github.com/zwindler/PodSweeper/issues/28)
-- [ ] [Level Progression] Level 4+ cleanup - Remove static leaks [#29](https://github.com/zwindler/PodSweeper/issues/29)
-- [ ] [Level Progression] Level transition orchestrator [#30](https://github.com/zwindler/PodSweeper/issues/30)
-- [ ] [Game Init] Level skip/select mechanism [#49](https://github.com/zwindler/PodSweeper/issues/49)
+### Level Infrastructure
+- [ ] Level state management
+  - Track current level in game state
+  - Persist level progress
+  - Handle level-specific configuration
+- [ ] Level transition orchestrator
+  - Define interface for level setup/teardown
+  - Trigger transitions on victory
+  - Apply level-specific resources (RBAC, ConfigMaps, etc.)
+- [ ] Kubernetes Event emission system
+  - Emit events for game actions (cell revealed, hint shown)
+  - Used for Level 9 mechanic and general debugging
+  - Attach events to relevant pods
+
+### RBAC System
+- [ ] RBAC template system
+  - Define templated Roles/RoleBindings per level
+  - Dynamic application based on current level
+  - Clean removal on level transition
+
+### Level Implementations
+
+#### Level 0: The Intern
+- [ ] Level 0 setup - ConfigMap cheat
+  - Create `ConfigMap` named `map` with mine positions
+  - Player can `kubectl get cm map -o yaml` to cheat
+  - No restrictions
+
+#### Level 1: The Junior  
+- [ ] Level 1 RBAC - Restrict ConfigMap access
+  - Remove `get configmaps` from player Role
+- [ ] Level 1 setup - Secret cheat
+  - Store map in `Secret` (Base64 encoded)
+  - Player must `kubectl get secret` and decode
+
+#### Level 2: The Infiltrator
+- [ ] Level 2 RBAC - Restrict Secret access
+  - Remove `get secrets` from player Role
+- [ ] Level 2 setup - Environment variable cheat
+  - Inject map data into pod environment variables
+  - Player must `kubectl exec` to read env
+
+#### Level 3: The Heart of the Machine
+- [ ] Level 3 setup - Gamemaster filesystem cheat
+  - Write map to file in Gamemaster pod
+  - Player must exec into Gamemaster to read
+  - No env vars in game pods
+
+#### Level 4: Amnesia
+- [ ] Level 4+ cleanup - Remove static leaks
+  - Map only in memory (GameState Secret, but encrypted/obfuscated)
+  - No ConfigMaps, no readable Secrets, no env vars, no files
+  - Forces "legitimate" gameplay
+
+### Level Selection
+- [ ] Level skip/select mechanism
+  - Allow starting at specific level (for testing/speedruns)
+  - Require flag from previous level to unlock (optional)
 
 ---
 
-## Phase 5: Security Hardening (Levels 5-9)
-**Goal:** Implement the hard levels
+## Phase 5: Security Hardening + Webhook (Levels 5-9)
+
+**Goal:** Implement advanced levels requiring admission webhook
 
 **Milestone:** `All 10 Levels Complete`
 
-### RBAC Foundation
-- [ ] [Security Hardening] RBAC template system [#31](https://github.com/zwindler/PodSweeper/issues/31)
-- [ ] [Security Hardening] Level 1 RBAC - Restrict ConfigMap access [#32](https://github.com/zwindler/PodSweeper/issues/32)
-- [ ] [Security Hardening] Level 2 RBAC - Restrict Secret access [#33](https://github.com/zwindler/PodSweeper/issues/33)
+### Admission Webhook Setup
+- [ ] Webhook server setup
+  - HTTP server for admission reviews
+  - Integration with controller-runtime
+- [ ] TLS certificate management
+  - Self-signed cert generation
+  - Certificate rotation strategy
+  - Mount certs into webhook pod
+- [ ] ValidatingWebhookConfiguration manifest
+  - Target DELETE operations on pods
+  - Namespace selector for `podsweeper-game`
+  - Failure policy configuration
+- [ ] Base validation logic
+  - Parse AdmissionReview requests
+  - Return Allow/Deny responses
+  - Include meaningful denial messages
+- [ ] Level-aware validation
+  - Check current level from game state
+  - Route to appropriate validation rules
+- [ ] Helm: Webhook resources
+  - ValidatingWebhookConfiguration template
+  - Service for webhook endpoint
+- [ ] Helm: Certificate management
+  - cert-manager integration OR
+  - Self-signed cert Job
 
-### Level 5: The Firewall
-- [ ] [Security Hardening] Level 5 NetworkPolicy - Block debug endpoint [#34](https://github.com/zwindler/PodSweeper/issues/34)
+### Level 5: The Firewall (NetworkPolicies)
+- [ ] Level 5 NetworkPolicy - Block debug endpoint
+  - Gamemaster exposes `:9999/debug/map`
+  - NetworkPolicy blocks all traffic to this port
+  - Player must create "proxy pod" with whitelisted labels
 
-### Level 6: The Sand Grain
-- [ ] [Security Hardening] Level 6 Finalizer injection [#35](https://github.com/zwindler/PodSweeper/issues/35)
-- [ ] [Admission Webhook] Level-aware validation [#13](https://github.com/zwindler/PodSweeper/issues/13)
-- [ ] [Admission Webhook] Finalizer validation (Level 6) [#15](https://github.com/zwindler/PodSweeper/issues/15)
+### Level 6: The Sand Grain (Finalizers)
+- [ ] Level 6 Finalizer injection
+  - Add `podsweeper.io/wait` finalizer to 10-100% of pods
+  - Pods stuck in `Terminating` state until finalizer removed
+- [ ] Finalizer validation
+  - Webhook validates finalizer was properly removed
+  - Deny deletion if finalizer still present (for game logic)
 
-### Level 7: Port-Hacking
-- [ ] [Hint Micro-Agent] Environment-based configuration [#42](https://github.com/zwindler/PodSweeper/issues/42)
-- [ ] [Hint Micro-Agent] Hint endpoint implementation [#41](https://github.com/zwindler/PodSweeper/issues/41)
-- [ ] [Security Hardening] Level 7 Dynamic port system [#36](https://github.com/zwindler/PodSweeper/issues/36)
+### Level 7: Port-Hacking (Dynamic Ports)
+- [ ] Hint endpoint implementation
+  - Hint pods serve on randomized port (1024-65535)
+  - Port stored in pod annotation
+- [ ] Level 7 Dynamic port system
+  - Generate random port per hint pod
+  - Store in `podsweeper.io/hint-port` annotation
+  - Player must read annotation, then curl correct port
 
-### Level 8: The Firing Window
-- [ ] [Admission Webhook] Timing validation (Level 8) [#14](https://github.com/zwindler/PodSweeper/issues/14)
-- [ ] [Security Hardening] Level 8 Timing enforcement [#37](https://github.com/zwindler/PodSweeper/issues/37)
+### Level 8: The Firing Window (Timing)
+- [ ] Timing validation
+  - Webhook captures request timestamp
+  - Only accept deletions in first 100ms of each second
+- [ ] Level 8 Timing enforcement
+  - Return detailed error: "Request at 450ms. Target: [0-100ms]"
+  - Force player to write synchronized deletion script
 
 ### Level 9: RBAC Blackout
-- [ ] [Security Hardening] Level 9 Minimal RBAC [#38](https://github.com/zwindler/PodSweeper/issues/38)
+- [ ] Level 9 Minimal RBAC
+  - Remove: `exec`, `describe`, `get -o yaml`
+  - Keep: `delete pods`, `get events`
+  - Hints leaked via Kubernetes Events only
 
 ### Orchestration
-- [ ] [Security Hardening] Security resource applicator [#39](https://github.com/zwindler/PodSweeper/issues/39)
+- [ ] Security resource applicator
+  - Apply/remove NetworkPolicies per level
+  - Apply/remove webhook configurations per level
+  - Coordinate RBAC changes
 
 ---
 
 ## Phase 6: Polish & Victory
-**Goal:** Complete the game experience
+
+**Goal:** Complete the game experience with rewards and visual feedback
 
 **Milestone:** `Full Game Experience`
 
 ### Victory Experience
-- [ ] [Victory/Defeat] Victory pod spawner [#52](https://github.com/zwindler/PodSweeper/issues/52)
-- [ ] [Victory/Defeat] ASCII art assets - Victory [#53](https://github.com/zwindler/PodSweeper/issues/53)
-- [ ] [Victory/Defeat] Flag generation system [#54](https://github.com/zwindler/PodSweeper/issues/54)
+- [ ] Victory pod spawner
+  - Spawn `victory` pod on game completion
+  - Pod stays running for player to inspect
+- [ ] ASCII art assets - Victory
+  - Unique trophy art per level (10 designs)
+  - Store as embedded strings or ConfigMap
+- [ ] Flag generation system
+  - Generate obfuscated flag per level
+  - XOR or Base64 encoding (spoiler prevention)
+  - Deliver via logs, env, or secret (level-dependent)
 
 ### Defeat Experience
-- [ ] [Victory/Defeat] Explosion sequence [#56](https://github.com/zwindler/PodSweeper/issues/56)
-- [ ] [Victory/Defeat] ASCII art assets - Explosion [#57](https://github.com/zwindler/PodSweeper/issues/57)
-- [ ] [Grid Management] Explosion pod spawner [#23](https://github.com/zwindler/PodSweeper/issues/23)
+- [ ] Explosion sequence
+  - Dramatic namespace wipe animation (staggered deletes)
+  - Final explosion pod with logs
+- [ ] ASCII art assets - Explosion
+  - Nuclear explosion / mushroom cloud art
+  - "GAME OVER" messaging
 
 ### Game Quality
-- [ ] [Game Init] Seed-based reproducibility [#47](https://github.com/zwindler/PodSweeper/issues/47)
-- [ ] [Grid Management] Chain deletion handler [#21](https://github.com/zwindler/PodSweeper/issues/21)
-- [ ] [Deployment] Installation verification [#66](https://github.com/zwindler/PodSweeper/issues/66)
+- [ ] Seed-based reproducibility
+  - Same seed = same mine placement
+  - Allow sharing seeds for challenges
+- [ ] Installation verification
+  - `helm test` or verify script
+  - Check all components running
+  - Validate webhook connectivity
 
 ---
 
 ## Phase 7: Documentation & Release
+
 **Goal:** Ready for public release
 
 **Milestone:** `v1.0 Release`
 
-- [ ] [Documentation] kubectl cheat sheet [#68](https://github.com/zwindler/PodSweeper/issues/68)
-- [ ] [Documentation] Level hints document [#69](https://github.com/zwindler/PodSweeper/issues/69)
-- [ ] [Documentation] Contributing guide [#70](https://github.com/zwindler/PodSweeper/issues/70)
-- [ ] [Documentation] Architecture documentation [#71](https://github.com/zwindler/PodSweeper/issues/71)
-- [ ] [Documentation] Demo GIF/Video [#72](https://github.com/zwindler/PodSweeper/issues/72)
-- [ ] [Deployment] Kustomize alternative [#65](https://github.com/zwindler/PodSweeper/issues/65)
+### Player Documentation
+- [ ] Player quickstart guide
+  - Installation steps (Helm)
+  - First game walkthrough
+  - Basic kubectl commands
+- [ ] kubectl cheat sheet
+  - Common commands for gameplay
+  - How to read hints, check status
+- [ ] Level hints document
+  - Subtle hints for each level (no solutions)
+  - Concepts to research per level
+
+### Developer Documentation
+- [ ] Contributing guide
+  - Development setup
+  - PR process
+  - Code style guidelines
+- [ ] Architecture documentation
+  - System design overview
+  - Component interactions
+  - State machine diagrams
+
+### Release Assets
+- [ ] Demo GIF/Video
+  - Recording of Level 0 gameplay
+  - Show click → hint → victory flow
+- [ ] Kustomize alternative
+  - For users who prefer Kustomize over Helm
+  - Base + overlays structure
 
 ---
 
-## 🚀 Quick Start: First 5 Issues
+## Quick Start: First 5 Tasks
 
 If you want to start coding immediately, tackle these first:
 
-1. **[Core Game Engine] Project scaffolding** [#1](https://github.com/zwindler/PodSweeper/issues/1)
-   - Initialize Go module with `controller-runtime` and `client-go`
-   - Set up directory structure: `cmd/`, `pkg/`, `internal/`
-   - Create Makefile with `build`, `test`, `run` targets
+1. **Project scaffolding**
+   - `go mod init github.com/zwindler/podsweeper`
+   - Set up `cmd/gamemaster/main.go`
+   - Create Makefile with basic targets
 
-2. **[Core Game Engine] Game state data model** [#3](https://github.com/zwindler/PodSweeper/issues/3)
-   - Define `GameState` struct with mine map, revealed cells, level, seed
-   - Implement JSON marshalling/unmarshalling
-   - Write unit tests for serialization
+2. **Game state data model**
+   - Define `GameState` struct in `pkg/game/state.go`
+   - Include: `MineMap [][]bool`, `Revealed [][]bool`, `Level int`, `Seed int64`
+   - Add JSON tags and serialization tests
 
-3. **[Grid Management] Grid generator** [#16](https://github.com/zwindler/PodSweeper/issues/16)
-   - Create function to generate N×N pod specs
-   - Implement `pod-x-y` naming convention
-   - Make grid size configurable
+3. **Grid generator**
+   - Create `pkg/grid/generator.go`
+   - Function: `GenerateGrid(size int, seed int64, density float64) *GameState`
+   - Unit tests for edge cases
 
-4. **[Grid Management] Mine placement algorithm** [#17](https://github.com/zwindler/PodSweeper/issues/17)
-   - Implement seeded random mine placement
-   - Make mine density configurable
-   - Ensure reproducibility with same seed
+4. **Mine placement algorithm**
+   - Implement in grid generator
+   - Use `math/rand` with seed for reproducibility
+   - Ensure mines don't exceed density percentage
 
-5. **[Hint Micro-Agent] HTTP server implementation** [#40](https://github.com/zwindler/PodSweeper/issues/40)
-   - Create minimal Go HTTP server (~50 lines)
-   - Serve hint value on `/` endpoint
-   - Read configuration from environment variables
-
----
-
-## 📝 Notes
-
-### Dependencies Between Issues
-- All **Core Game Engine** issues depend on **Project scaffolding** [#1](https://github.com/zwindler/PodSweeper/issues/1)
-- All **Grid Management** issues depend on **Game state data model** [#3](https://github.com/zwindler/PodSweeper/issues/3)
-- All **Security Hardening** issues depend on **Level state management** [#24](https://github.com/zwindler/PodSweeper/issues/24)
-- **Admission Webhook** issues are needed for Levels 6, 8
-- **Helm** issues depend on **Dockerfiles** being complete
-
-### Labels Used
-- `enhancement` - Feature implementation
-- `documentation` - Docs and guides
-
-### Suggested Milestones
-1. `Level 0 Playable` - Basic working game
-2. `Public Alpha` - Installable by others
-3. `Webhook Ready` - Advanced mechanics enabled
-4. `Levels 0-4 Complete` - Half the CTF done
-5. `All 10 Levels Complete` - Full CTF experience
-6. `Full Game Experience` - Polished gameplay
-7. `v1.0 Release` - Production ready
+5. **HTTP server implementation (Hint Agent)**
+   - Create `cmd/hint-agent/main.go`
+   - Minimal server: read `HINT_VALUE` env, serve on `/`
+   - Target: <100 lines of code
 
 ---
 
-## 🔄 Progress Tracking
+## Dependency Graph
 
-Update this section as you complete issues:
+```
+Phase 1: Foundation
+    └── All other phases depend on this
+
+Phase 2: Deployment
+    ├── Depends on: Phase 1 (need something to deploy)
+    └── Enables: External testing, CI/CD
+
+Phase 3: Testing
+    ├── Depends on: Phase 2 (need deployable artifacts)
+    └── Enables: Confident iteration on Phases 4-6
+
+Phase 4: Levels 0-4
+    ├── Depends on: Phase 1 (core game), Phase 3 (tests)
+    └── No webhook required
+
+Phase 5: Levels 5-9 + Webhook
+    ├── Depends on: Phase 4 (level infrastructure)
+    └── Introduces admission webhook
+
+Phase 6: Polish
+    ├── Depends on: Phase 5 (all levels working)
+    └── Can be parallelized with Phase 5
+
+Phase 7: Documentation
+    ├── Depends on: Phase 6 (complete game)
+    └── Can start drafts earlier
+```
+
+---
+
+## Progress Tracking
+
+Update this section as you complete tasks:
 
 | Phase | Status | Progress |
 |-------|--------|----------|
-| Phase 1: Foundation | 🔴 Not Started | 0/20 |
-| Phase 2: Deployment | 🔴 Not Started | 0/9 |
-| Phase 3: Webhook | 🔴 Not Started | 0/6 |
-| Phase 4: Levels | 🔴 Not Started | 0/8 |
-| Phase 5: Security | 🔴 Not Started | 0/14 |
-| Phase 6: Polish | 🔴 Not Started | 0/9 |
-| Phase 7: Docs | 🔴 Not Started | 0/6 |
-| **Total** | | **0/72** |
-
-Legend: 🔴 Not Started | 🟡 In Progress | 🟢 Complete
+| Phase 1: Foundation | Not Started | 0/18 |
+| Phase 2: Deployment | Not Started | 0/8 |
+| Phase 3: Testing | Not Started | 0/5 |
+| Phase 4: Levels 0-4 | Not Started | 0/12 |
+| Phase 5: Levels 5-9 + Webhook | Not Started | 0/16 |
+| Phase 6: Polish | Not Started | 0/7 |
+| Phase 7: Documentation | Not Started | 0/7 |
+| **Total** | | **0/73** |
 
 ---
 
-*Generated for PodSweeper - The most impractical way to play Minesweeper* 🛸
+*PodSweeper - The most impractical way to play Minesweeper*
