@@ -184,12 +184,6 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 		Namespace: r.Namespace,
 	})
 
-	// Cleanup all existing game pods (cells, hints, explosion, victory)
-	if err := gridSpawner.CleanupGrid(ctx); err != nil {
-		logger.Error(err, "failed to cleanup existing game pods")
-		// Continue anyway - we'll try to create the new game
-	}
-
 	// Generate new game state with a new random seed
 	seed := time.Now().UnixNano()
 	newState, err := grid.GenerateForLevel(level, seed)
@@ -198,13 +192,31 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 		return ctrl.Result{}, err
 	}
 
-	// Save the new game state
+	// IMPORTANT: Save the new game state BEFORE cleanup to avoid race condition.
+	// When we cleanup old pods, deletion events trigger this controller's Reconcile.
+	// If the old state (lost/won) is still saved, those deletions would be ignored
+	// correctly, but we want the new "playing" state ready immediately.
 	if err := r.Store.Save(ctx, newState); err != nil {
 		logger.Error(err, "failed to save new game state")
 		return ctrl.Result{}, err
 	}
 
 	logger.Info("new game state saved", "seed", seed, "size", newState.Size, "mines", newState.MineCount)
+
+	// Cleanup all existing game pods (cells, hints, explosion, victory)
+	// Now safe - new state is already saved so any cleanup deletions see "playing" status
+	if err := gridSpawner.CleanupGrid(ctx); err != nil {
+		logger.Error(err, "failed to cleanup existing game pods")
+		// Continue anyway - we'll try to create the new game
+	}
+
+	// Wait for cleanup to complete before spawning new pods
+	// This prevents race conditions where deletion events from cleanup
+	// get processed as player clicks on the new game
+	if err := gridSpawner.WaitForCleanup(ctx, 30*time.Second); err != nil {
+		logger.Error(err, "timeout waiting for cleanup to complete")
+		// Continue anyway - we'll try to spawn the new grid
+	}
 
 	// Spawn the new grid pods
 	spawnResult, err := gridSpawner.SpawnGrid(ctx, newState)

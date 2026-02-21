@@ -221,6 +221,14 @@ func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.Confi
 		// Continue anyway
 	}
 
+	// Wait for cleanup to complete before spawning new pods
+	// This prevents race conditions where deletion events from cleanup
+	// get processed as player clicks on the new game
+	if err := gridSpawner.WaitForCleanup(ctx, 30*time.Second); err != nil {
+		logger.Error(err, "timeout waiting for cleanup to complete")
+		// Continue anyway - we'll try to spawn the new grid
+	}
+
 	// Spawn grid
 	result, err := gridSpawner.SpawnGrid(ctx, gameState)
 	if err != nil {

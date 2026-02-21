@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -285,7 +286,8 @@ func (h *GameHandlers) spawnHintPod(ctx context.Context, coords game.Coordinate,
 			},
 		},
 		Spec: corev1.PodSpec{
-			RestartPolicy: corev1.RestartPolicyNever,
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			TerminationGracePeriodSeconds: ptr.To(int64(1)), // Fast termination for game pods
 			Containers: []corev1.Container{
 				{
 					Name:  "hint",
@@ -339,7 +341,8 @@ sleep 300`, coords.X, coords.Y)
 			},
 		},
 		Spec: corev1.PodSpec{
-			RestartPolicy: corev1.RestartPolicyNever,
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			TerminationGracePeriodSeconds: ptr.To(int64(1)), // Fast termination for game pods
 			Containers: []corev1.Container{
 				{
 					Name:    "explosion",
@@ -389,7 +392,8 @@ sleep 300`, state.Level, state.Clicks, state.MineCount)
 			},
 		},
 		Spec: corev1.PodSpec{
-			RestartPolicy: corev1.RestartPolicyNever,
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			TerminationGracePeriodSeconds: ptr.To(int64(1)), // Fast termination for game pods
 			Containers: []corev1.Container{
 				{
 					Name:    "victory",

@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -200,7 +201,8 @@ func (s *GridSpawner) buildCellPod(coord game.Coordinate, gameID string) *corev1
 			},
 		},
 		Spec: corev1.PodSpec{
-			RestartPolicy: corev1.RestartPolicyNever,
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			TerminationGracePeriodSeconds: ptr.To(int64(1)), // Fast termination for game pods
 			Containers: []corev1.Container{
 				{
 					Name:  "cell",
@@ -292,6 +294,34 @@ func (s *GridSpawner) WaitForPodsReady(ctx context.Context, expectedCount int, t
 		logger.V(1).Info("waiting for pods", "running", runningCount, "expected", expectedCount)
 
 		return runningCount >= expectedCount, nil
+	})
+}
+
+// WaitForCleanup waits for all game pods to be fully deleted.
+func (s *GridSpawner) WaitForCleanup(ctx context.Context, timeout time.Duration) error {
+	logger := log.FromContext(ctx)
+
+	return wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, timeout, true, func(ctx context.Context) (bool, error) {
+		podList := &corev1.PodList{}
+		if err := s.client.List(ctx, podList,
+			client.InNamespace(s.namespace),
+			client.MatchingLabels{LabelApp: "podsweeper"},
+		); err != nil {
+			return false, err
+		}
+
+		// Count game pods (not infrastructure like gamemaster)
+		gamePodsCount := 0
+		for _, pod := range podList.Items {
+			component := pod.Labels[LabelComponent]
+			if gameComponents[component] {
+				gamePodsCount++
+			}
+		}
+
+		logger.V(1).Info("waiting for cleanup", "remaining", gamePodsCount)
+
+		return gamePodsCount == 0, nil
 	})
 }
 
