@@ -15,15 +15,14 @@ import (
 )
 
 const (
-	// HintAgentImage is the container image for hint pods.
-	// This should be configurable in production.
-	HintAgentImage = "ghcr.io/zwindler/podsweeper-hint-agent:latest"
+	// DefaultHintAgentImage is the default container image for hint pods.
+	DefaultHintAgentImage = "ghcr.io/zwindler/podsweeper-hint-agent:latest"
 
-	// ExplosionImage is the container image for the explosion pod.
-	ExplosionImage = "busybox:latest"
+	// DefaultExplosionImage is the default container image for the explosion pod.
+	DefaultExplosionImage = "busybox:latest"
 
-	// VictoryImage is the container image for the victory pod.
-	VictoryImage = "busybox:latest"
+	// DefaultVictoryImage is the default container image for the victory pod.
+	DefaultVictoryImage = "busybox:latest"
 
 	// LabelApp is the app label for game pods.
 	LabelApp = "app.kubernetes.io/name"
@@ -44,19 +43,54 @@ const (
 	AnnotationPort = "podsweeper.io/port"
 )
 
+// ImageConfig holds the container images used by the game.
+type ImageConfig struct {
+	HintAgent string
+	Explosion string
+	Victory   string
+}
+
+// DefaultImageConfig returns the default image configuration.
+func DefaultImageConfig() ImageConfig {
+	return ImageConfig{
+		HintAgent: DefaultHintAgentImage,
+		Explosion: DefaultExplosionImage,
+		Victory:   DefaultVictoryImage,
+	}
+}
+
 // GameHandlers contains the logic for handling game events.
 type GameHandlers struct {
 	client    client.Client
 	store     game.Store
 	namespace string
+	images    ImageConfig
+}
+
+// GameHandlersConfig holds configuration for GameHandlers.
+type GameHandlersConfig struct {
+	Namespace string
+	Images    ImageConfig
 }
 
 // NewGameHandlers creates a new GameHandlers instance.
-func NewGameHandlers(c client.Client, store game.Store, namespace string) *GameHandlers {
+func NewGameHandlers(c client.Client, store game.Store, config GameHandlersConfig) *GameHandlers {
+	images := config.Images
+	if images.HintAgent == "" {
+		images.HintAgent = DefaultHintAgentImage
+	}
+	if images.Explosion == "" {
+		images.Explosion = DefaultExplosionImage
+	}
+	if images.Victory == "" {
+		images.Victory = DefaultVictoryImage
+	}
+
 	return &GameHandlers{
 		client:    c,
 		store:     store,
-		namespace: namespace,
+		namespace: config.Namespace,
+		images:    images,
 	}
 }
 
@@ -255,7 +289,7 @@ func (h *GameHandlers) spawnHintPod(ctx context.Context, coords game.Coordinate,
 			Containers: []corev1.Container{
 				{
 					Name:  "hint",
-					Image: HintAgentImage,
+					Image: h.images.HintAgent,
 					Env: []corev1.EnvVar{
 						{Name: "HINT_VALUE", Value: strconv.Itoa(hintValue)},
 						{Name: "POD_X", Value: strconv.Itoa(coords.X)},
@@ -275,23 +309,25 @@ func (h *GameHandlers) spawnHintPod(ctx context.Context, coords game.Coordinate,
 
 // spawnExplosionPod creates the explosion pod after a mine is hit.
 func (h *GameHandlers) spawnExplosionPod(ctx context.Context, coords game.Coordinate) error {
-	explosionASCII := `
+	// Use heredoc with single-quoted delimiter to avoid shell escaping issues
+	// Sleep 300s (5 minutes) so player can see the message
+	script := fmt.Sprintf(`cat <<'EXPLOSION'
     _ ._  _ , _ ._
-  (_ ' ( \` + "`" + `)_  .__)
-( (  (    )   \` + "`" + `) ) _)
+  (_ ' ( `+"`"+`)_  .__)
+( (  (    )   `+"`"+`) ) _)
 (__ (_   (_ . _) _) ,__)
-    \` + "`" + `~~\` + "`" + `\ ' . /\` + "`" + `~~\` + "`" + `
+    `+"`"+`~~`+"`"+`\ ' . /`+"`"+`~~`+"`"+`
          ;   ;
          /   \
 _________/_ __ \_________
 
-    💥 BOOM! 💥
-    
+    BOOM!
+
   You hit a mine at (%d, %d)!
-  
+
      GAME OVER
-`
-	message := fmt.Sprintf(explosionASCII, coords.X, coords.Y)
+EXPLOSION
+sleep 300`, coords.X, coords.Y)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -307,8 +343,8 @@ _________/_ __ \_________
 			Containers: []corev1.Container{
 				{
 					Name:    "explosion",
-					Image:   ExplosionImage,
-					Command: []string{"sh", "-c", fmt.Sprintf("echo '%s' && sleep infinity", message)},
+					Image:   h.images.Explosion,
+					Command: []string{"sh", "-c", script},
 				},
 			},
 		},
@@ -319,7 +355,9 @@ _________/_ __ \_________
 
 // spawnVictoryPod creates the victory pod after winning.
 func (h *GameHandlers) spawnVictoryPod(ctx context.Context, state *game.GameState) error {
-	victoryASCII := `
+	// Use heredoc with single-quoted delimiter to avoid shell escaping issues
+	// Sleep 300s (5 minutes) so player can see the message
+	script := fmt.Sprintf(`cat <<'VICTORY'
     ___________
    '._==_==_=_.'
    .-\:      /-.
@@ -329,17 +367,17 @@ func (h *GameHandlers) spawnVictoryPod(ctx context.Context, state *game.GameStat
       '::. .'
         ) (
       _.' '._
-     \` + "`" + `"""""""\` + "`" + `
+     `+"`"+`"""""""`+"`"+`
 
-  🎉 VICTORY! 🎉
-  
+  VICTORY!
+
   Level: %d
   Clicks: %d
   Mines: %d
-  
+
   Congratulations!
-`
-	message := fmt.Sprintf(victoryASCII, state.Level, state.Clicks, state.MineCount)
+VICTORY
+sleep 300`, state.Level, state.Clicks, state.MineCount)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -355,8 +393,8 @@ func (h *GameHandlers) spawnVictoryPod(ctx context.Context, state *game.GameStat
 			Containers: []corev1.Container{
 				{
 					Name:    "victory",
-					Image:   VictoryImage,
-					Command: []string{"sh", "-c", fmt.Sprintf("echo '%s' && sleep infinity", message)},
+					Image:   h.images.Victory,
+					Command: []string{"sh", "-c", script},
 				},
 			},
 		},

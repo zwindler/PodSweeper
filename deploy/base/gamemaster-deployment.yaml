@@ -32,6 +32,14 @@ spec:
           args:
             - --namespace=podsweeper-game
             - --health-probe-bind-address=:8081
+          env:
+            # Container images for game pods (override for local dev with :dev tags)
+            - name: PODSWEEPER_HINT_IMAGE
+              value: "ghcr.io/zwindler/podsweeper-hint-agent:latest"
+            - name: PODSWEEPER_EXPLOSION_IMAGE
+              value: "busybox:latest"
+            - name: PODSWEEPER_VICTORY_IMAGE
+              value: "busybox:latest"
           ports:
             - name: health
               containerPort: 8081

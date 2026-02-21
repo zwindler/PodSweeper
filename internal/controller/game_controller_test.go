@@ -440,7 +440,7 @@ func TestGameHandlers_HandleMineHit(t *testing.T) {
 	state.SetMine(3, 3) // Add a mine
 	_ = store.Save(ctx, state)
 
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 	coords := game.Coordinate{X: 3, Y: 3}
 
 	_, err := handlers.HandleMineHit(ctx, state, coords)
@@ -483,7 +483,7 @@ func TestGameHandlers_HandleHintCell(t *testing.T) {
 	state.SetMine(1, 1) // Mine at 1,1
 	_ = store.Save(ctx, state)
 
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 	// Cell at 0,0 is adjacent to the mine at 1,1
 	coords := game.Coordinate{X: 0, Y: 0}
 	hintValue := state.AdjacentMines(0, 0)
@@ -542,7 +542,7 @@ func TestGameHandlers_HandleEmptyCell_BFSPropagation(t *testing.T) {
 	state.SetMine(3, 4)
 	_ = store.Save(ctx, state)
 
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 	// Click on empty cell in top-left corner - should propagate
 	coords := game.Coordinate{X: 0, Y: 0}
 
@@ -580,7 +580,7 @@ func TestGameHandlers_BFSPropagation(t *testing.T) {
 	state := game.NewGameState(4, 12345)
 	state.SetMine(3, 0)
 
-	handlers := NewGameHandlers(nil, store, testNamespace)
+	handlers := NewGameHandlers(nil, store, GameHandlersConfig{Namespace: testNamespace})
 	start := game.Coordinate{X: 0, Y: 0}
 
 	empty, boundary := handlers.bfsPropagation(state, start)
@@ -621,7 +621,7 @@ func TestGameHandlers_HandleVictory(t *testing.T) {
 	// Only (1,1) is safe
 	_ = store.Save(ctx, state)
 
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	// Reveal the only safe cell - should trigger victory
 	coords := game.Coordinate{X: 1, Y: 1}
@@ -679,7 +679,7 @@ func TestGameHandlers_WipeGamePods(t *testing.T) {
 		Build()
 
 	store := game.NewMemoryStore()
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	err := handlers.wipeGamePods(ctx)
 	if err != nil {
@@ -745,7 +745,7 @@ func TestGameHandlers_SpawnHintPod(t *testing.T) {
 		Build()
 
 	store := game.NewMemoryStore()
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	coords := game.Coordinate{X: 5, Y: 7}
 	hintValue := 3
@@ -792,8 +792,8 @@ func TestGameHandlers_SpawnHintPod(t *testing.T) {
 	if container.Name != "hint" {
 		t.Errorf("expected container name 'hint', got %q", container.Name)
 	}
-	if container.Image != HintAgentImage {
-		t.Errorf("expected image %q, got %q", HintAgentImage, container.Image)
+	if container.Image != DefaultHintAgentImage {
+		t.Errorf("expected image %q, got %q", DefaultHintAgentImage, container.Image)
 	}
 }
 
@@ -806,7 +806,7 @@ func TestGameHandlers_SpawnExplosionPod(t *testing.T) {
 		Build()
 
 	store := game.NewMemoryStore()
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	coords := game.Coordinate{X: 3, Y: 5}
 
@@ -840,7 +840,7 @@ func TestGameHandlers_SpawnVictoryPod(t *testing.T) {
 		Build()
 
 	store := game.NewMemoryStore()
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	state := createTestGameState(8)
 	state.Level = 5
@@ -879,7 +879,7 @@ func TestGameHandlers_DeletePod(t *testing.T) {
 		Build()
 
 	store := game.NewMemoryStore()
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	coords := game.Coordinate{X: 2, Y: 3}
 
@@ -905,7 +905,7 @@ func TestGameHandlers_DeletePodNotFound(t *testing.T) {
 		Build()
 
 	store := game.NewMemoryStore()
-	handlers := NewGameHandlers(fakeClient, store, testNamespace)
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
 
 	coords := game.Coordinate{X: 99, Y: 99}
 

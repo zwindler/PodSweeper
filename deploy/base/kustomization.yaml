@@ -18,6 +18,16 @@ labels:
 
 images:
   - name: ghcr.io/zwindler/podsweeper-gamemaster
-    newTag: latest
+    newTag: dev
   - name: ghcr.io/zwindler/podsweeper-hint-agent
-    newTag: latest
+    newTag: dev
+
+# Patch to use :dev tag for hint-agent env var (kustomize images only transforms container images)
+patches:
+  - target:
+      kind: Deployment
+      name: gamemaster
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: "ghcr.io/zwindler/podsweeper-hint-agent:dev"

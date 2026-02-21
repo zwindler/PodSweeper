@@ -1,5 +1,8 @@
 # Binaries
 bin/
+gamemaster
+hint-agent
+podsweeper
 *.exe
 *.exe~
 *.dll

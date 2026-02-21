@@ -17,8 +17,8 @@ CLI_BINARY=podsweeper
 BUILD_DIR=bin
 CMD_DIR=cmd
 
-# Docker parameters
-DOCKER=docker
+# Container runtime: auto-detect podman or docker
+CONTAINER_RUNTIME?=$(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 REGISTRY?=ghcr.io/zwindler
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
@@ -109,17 +109,17 @@ docker-build: docker-build-gamemaster docker-build-hint-agent docker-build-cli
 ## Build gamemaster Docker image
 docker-build-gamemaster:
 	@echo "Building gamemaster Docker image..."
-	$(DOCKER) build -t $(REGISTRY)/podsweeper-gamemaster:$(VERSION) -f build/gamemaster/Dockerfile --build-arg VERSION=$(VERSION) .
+	$(CONTAINER_RUNTIME) build -t $(REGISTRY)/podsweeper-gamemaster:$(VERSION) -f build/gamemaster/Dockerfile --build-arg VERSION=$(VERSION) .
 
 ## Build hint-agent Docker image
 docker-build-hint-agent:
 	@echo "Building hint-agent Docker image..."
-	$(DOCKER) build -t $(REGISTRY)/podsweeper-hint-agent:$(VERSION) -f build/hint-agent/Dockerfile --build-arg VERSION=$(VERSION) .
+	$(CONTAINER_RUNTIME) build -t $(REGISTRY)/podsweeper-hint-agent:$(VERSION) -f build/hint-agent/Dockerfile --build-arg VERSION=$(VERSION) .
 
 ## Build CLI Docker image
 docker-build-cli:
 	@echo "Building CLI Docker image..."
-	$(DOCKER) build -t $(REGISTRY)/podsweeper:$(VERSION) -f build/podsweeper/Dockerfile --build-arg VERSION=$(VERSION) .
+	$(CONTAINER_RUNTIME) build -t $(REGISTRY)/podsweeper:$(VERSION) -f build/podsweeper/Dockerfile --build-arg VERSION=$(VERSION) .
 
 ## Push Docker images
 docker-push: docker-push-gamemaster docker-push-hint-agent docker-push-cli
@@ -127,17 +127,17 @@ docker-push: docker-push-gamemaster docker-push-hint-agent docker-push-cli
 ## Push gamemaster Docker image
 docker-push-gamemaster:
 	@echo "Pushing gamemaster Docker image..."
-	$(DOCKER) push $(REGISTRY)/podsweeper-gamemaster:$(VERSION)
+	$(CONTAINER_RUNTIME) push $(REGISTRY)/podsweeper-gamemaster:$(VERSION)
 
 ## Push hint-agent Docker image
 docker-push-hint-agent:
 	@echo "Pushing hint-agent Docker image..."
-	$(DOCKER) push $(REGISTRY)/podsweeper-hint-agent:$(VERSION)
+	$(CONTAINER_RUNTIME) push $(REGISTRY)/podsweeper-hint-agent:$(VERSION)
 
 ## Push CLI Docker image
 docker-push-cli:
 	@echo "Pushing CLI Docker image..."
-	$(DOCKER) push $(REGISTRY)/podsweeper:$(VERSION)
+	$(CONTAINER_RUNTIME) push $(REGISTRY)/podsweeper:$(VERSION)
 
 ## Generate code (for future CRDs if needed)
 generate:

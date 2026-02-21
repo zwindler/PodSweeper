@@ -35,6 +35,7 @@ type GameController struct {
 type GameControllerConfig struct {
 	Namespace string
 	Store     game.Store
+	Images    ImageConfig
 }
 
 // NewGameController creates a new GameController.
@@ -44,7 +45,10 @@ func NewGameController(c client.Client, config GameControllerConfig) *GameContro
 		Store:     config.Store,
 		Namespace: config.Namespace,
 	}
-	gc.Handlers = NewGameHandlers(c, config.Store, config.Namespace)
+	gc.Handlers = NewGameHandlers(c, config.Store, GameHandlersConfig{
+		Namespace: config.Namespace,
+		Images:    config.Images,
+	})
 	return gc
 }
 

@@ -26,6 +26,14 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+// getEnvOrDefault returns the value of the environment variable or a default value.
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 }
@@ -67,10 +75,18 @@ func main() {
 		game.WithNamespace(namespace),
 	)
 
+	// Configure container images (can be overridden via environment variables)
+	imageConfig := controller.ImageConfig{
+		HintAgent: getEnvOrDefault("PODSWEEPER_HINT_IMAGE", controller.DefaultHintAgentImage),
+		Explosion: getEnvOrDefault("PODSWEEPER_EXPLOSION_IMAGE", controller.DefaultExplosionImage),
+		Victory:   getEnvOrDefault("PODSWEEPER_VICTORY_IMAGE", controller.DefaultVictoryImage),
+	}
+
 	// Create and register the game controller
 	gameController := controller.NewGameController(mgr.GetClient(), controller.GameControllerConfig{
 		Namespace: namespace,
 		Store:     store,
+		Images:    imageConfig,
 	})
 
 	if err := gameController.SetupWithManager(mgr); err != nil {
@@ -92,6 +108,9 @@ func main() {
 	setupLog.Info("starting gamemaster",
 		"namespace", namespace,
 		"probeAddr", probeAddr,
+		"hintImage", imageConfig.HintAgent,
+		"explosionImage", imageConfig.Explosion,
+		"victoryImage", imageConfig.Victory,
 	)
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
