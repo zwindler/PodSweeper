@@ -1,511 +1,193 @@
 # PodSweeper Development Roadmap
 
 This document outlines the recommended order for building PodSweeper incrementally.
-Each phase builds on the previous one, ensuring dependencies are resolved before moving forward.
 
 ---
 
 ## Summary
 
-| Phase | Name | Tasks | Status |
-|-------|------|-------|--------|
-| 1 | Foundation (MVP) | 18 | **Complete** |
-| 2 | Deployment & Ops | 8 | 6/8 |
-| 3 | Testing | 5 | 3/5 |
-| 4 | Level Progression (0-4) | 12 | 0/12 |
-| 5 | Security Hardening + Webhook (5-9) | 16 | 0/16 |
-| 6 | Polish & Victory | 7 | 2/7 |
-| 7 | Documentation & Release | 7 | 0/7 |
-| **Total** | | **73** | **29/73 (40%)** |
+| Phase | Name | Status |
+|-------|------|--------|
+| 1 | Foundation (MVP) | **Complete** |
+| 2 | Level Progression (0-4) | Next Up |
+| 3 | Security Hardening + Webhook (5-9) | Not Started |
+| 4 | Pre-Release Polish | Not Started |
+| 5 | Documentation & Release | Not Started |
 
 ---
 
-## Phase 1: Foundation (MVP - Level 0 Playable) - COMPLETE
+## Phase 1: Foundation (MVP) - COMPLETE
 
-**Goal:** Get a basic working game without levels or hardening. Player can delete pods, see hints, win, or lose.
+**Goal:** Basic working game. Player can delete pods, see hints, win, or lose.
 
-**Milestone:** `Level 0 Playable`
-
-### Core Infrastructure
-- [x] Project scaffolding
-  - Initialize Go module with `controller-runtime` and `client-go`
-  - Set up directory structure: `cmd/`, `pkg/`, `internal/`
-  - Create Makefile with `build`, `test`, `run` targets
-- [x] Structured logging setup
-  - Configure structured logging (e.g., `zap` or `logr`)
-  - Define log levels and formats for controller/webhook
-- [x] Error handling and user feedback
-  - Define error types for game events (invalid move, game over, etc.)
-  - Ensure errors surface meaningful messages to `kubectl` users
-
-### Game State
-- [x] Game state data model
-  - Define `GameState` struct: mine map, revealed cells, level, seed
-  - Implement JSON marshalling/unmarshalling
-  - Write unit tests for serialization
-- [x] State persistence layer
-  - Implement read/write to Kubernetes Secret `podsweeper-state`
-  - Handle concurrent access and conflicts
-
-### Grid Management
-- [x] Grid generator
-  - Create function to generate N×N pod specs
-  - Implement `pod-x-y` naming convention
-  - Make grid size configurable
-- [x] Mine placement algorithm
-  - Implement seeded random mine placement
-  - Make mine density configurable
-  - Ensure reproducibility with same seed
-- [x] Grid spawner
-  - Create pods in `podsweeper-game` namespace
-  - Handle partial failures and retries
-
-### Controller
-- [x] Controller bootstrap and reconciliation
-  - Set up controller-runtime manager
-  - Implement Pod watcher for `podsweeper-game` namespace
-  - Basic reconciliation loop
-- [x] Deletion event handler
-  - Detect pod deletion events
-  - Route to appropriate handler (mine/safe/empty)
-- [x] Mine detection logic
-  - Check if deleted pod coordinates match mine map
-  - Trigger appropriate game flow
-- [x] Adjacent mine counter
-  - Calculate number of mines in 8-cell neighborhood
-  - Handle edge/corner cases correctly
-- [x] BFS propagation with chain deletion
-  - Implement Breadth-First Search for empty cell propagation
-  - Automatically delete connected empty pods
-  - Stop at numbered hint boundaries
-  - Create hint pods at propagation edges
-
-### Hint Micro-Agent
-- [x] HTTP server implementation
-  - Create minimal Go HTTP server (~50 lines)
-  - Serve hint value on `/` endpoint
-  - Configurable port binding
-- [x] Environment-based configuration
-  - Read hint value from `HINT_VALUE` env var
-  - Read coordinates from `POD_X`, `POD_Y` env vars
-  - Support dynamic port via `PORT` env var (for Level 7)
-- [x] Container image build
-  - Create minimal Dockerfile (scratch/distroless base)
-  - Multi-stage build for small image size
-- [x] Hint pod template
-  - Define pod spec with hint container
-  - Configure environment variables injection
-  - Set resource limits
-- [x] Hint pod spawner
-  - Create `hint-x-y` pods after safe cell deletion
-  - Inject correct hint value based on adjacent mine count
-
-### Victory & Defeat
+### Completed
+- [x] Project scaffolding (Go module, directory structure, Makefile)
+- [x] Structured logging with `logr`
+- [x] Game state data model (`GameState` struct with JSON serialization)
+- [x] State persistence to Kubernetes Secret
+- [x] Grid generator with `pod-x-y` naming
+- [x] Seeded random mine placement
+- [x] Grid spawner with batch creation and retries
+- [x] Controller with Pod watcher and reconciliation loop
+- [x] Deletion event handler routing (mine/safe/empty)
+- [x] Adjacent mine counter (8-cell neighborhood)
+- [x] BFS propagation for empty cells
+- [x] Hint micro-agent HTTP server
+- [x] Hint pod spawner with environment injection
 - [x] Victory condition checker
-  - Detect when all non-mine pods are cleared
-  - Compare remaining pods against mine map
-- [x] Defeat sequence handler
-  - Detect mine pod deletion
-  - Wipe namespace (delete all game pods)
-  - Spawn explosion pod with ASCII art in logs
-
-### Game Initialization
-- [x] Player ServiceAccount setup
-  - Create ServiceAccount for player
-  - Define base RBAC (delete pods, get pods)
-  - Generate kubeconfig for player
-- [x] Namespace initializer
-  - Create `podsweeper-game` namespace if not exists
-  - Apply required labels and annotations
-- [x] Game start command
-  - ConfigMap-based game control (action: start/stop)
-  - Accept seed and level parameters
+- [x] Defeat handler with explosion pod
+- [x] Player ServiceAccount and RBAC
+- [x] Namespace initialization
+- [x] ConfigMap-based game control
+- [x] Dockerfiles for gamemaster and hint-agent
+- [x] Kustomize deployment manifests
+- [x] Unit tests for controllers and game logic
+- [x] Fast pod termination (1s grace period)
+- [x] Race condition fixes (WaitForCleanup, save-before-cleanup)
 
 ---
 
-## Phase 2: Deployment & Basic Ops
+## Phase 2: Level Progression (Levels 0-4) - NEXT
 
-**Goal:** Make the game installable by others
-
-**Milestone:** `Public Alpha`
-
-### Container Images
-- [x] Gamemaster Dockerfile
-  - Multi-stage build for Go binary
-  - Non-root user, minimal base image
-- [ ] Gamemaster image CI
-  - GitHub Actions workflow for building/pushing
-  - Semantic versioning tags
-- [x] Hint Micro-Agent Dockerfile
-  - Multi-stage build for Go binary
-  - Minimal base image
-- [ ] Hint Micro-Agent image CI
-  - Separate workflow for hint agent image
-  - Keep image minimal (<10MB)
-
-### Gamemaster Operations
-- [ ] Gamemaster health endpoints
-  - `/healthz` for liveness probe
-  - `/readyz` for readiness probe
-  - Proper startup probe configuration
-
-### Kustomize Deployment (replacing Helm for now)
-- [x] Kustomize base manifests
-  - Namespace, Deployment, RBAC resources
-  - ConfigMap for game control
-- [x] Gamemaster Deployment manifest
-  - Deployment with configurable replicas
-  - Resource requests/limits
-  - Environment configuration
-- [x] RBAC resources
-  - ServiceAccount for Gamemaster
-  - ClusterRole/Role for watching pods, managing secrets
-  - Player ServiceAccount with limited permissions
-
-### Game Operations
-- [x] Game reset function
-  - Restart via ConfigMap action or explosion/victory pod deletion
-  - Preserve level on restart
-
----
-
-## Phase 3: Testing
-
-**Goal:** Establish quality gates before building complex level mechanics
-
-**Milestone:** `Quality Gates`
-
-### Unit Testing
-- [x] Unit test framework setup
-  - Configure test harness with mocks for Kubernetes client
-  - Set up test fixtures for game state
-- [x] Controller unit tests
-  - Test mine detection logic
-  - Test BFS propagation algorithm
-  - Test victory/defeat conditions
-  - Test adjacent mine counting (edge cases)
-
-### Integration/E2E Testing
-- [ ] E2E test framework
-  - Set up kind/k3d for local cluster testing
-  - Create test harness for deploying game
-  - Implement test utilities (wait for pods, simulate clicks)
-- [x] E2E tests for Level 0 (manual testing completed)
-  - Test: Click safe cell → hint pod appears
-  - Test: Click empty cell → BFS propagation works
-  - Test: Click mine → game over sequence
-  - Test: Clear all safe cells → victory
-
-### Webhook Testing (for later phases)
-- [ ] Webhook unit tests
-  - Test validation logic (prepared for Phase 5)
-  - Test timing window validation
-  - Test finalizer validation
-
----
-
-## Phase 4: Level Progression (Levels 0-4)
-
-**Goal:** Implement the CTF path for early levels (no webhook required)
-
-**Milestone:** `Levels 0-4 Complete`
+**Goal:** Implement CTF-style "cheat" paths for early levels. No webhook required.
 
 ### Level Infrastructure
 - [ ] Level state management
-  - Track current level in game state
-  - Persist level progress
-  - Handle level-specific configuration
-- [ ] Level transition orchestrator
-  - Define interface for level setup/teardown
-  - Trigger transitions on victory
-  - Apply level-specific resources (RBAC, ConfigMaps, etc.)
-- [ ] Kubernetes Event emission system
-  - Emit events for game actions (cell revealed, hint shown)
-  - Used for Level 9 mechanic and general debugging
-  - Attach events to relevant pods
+  - Track current level in game state (already have `Level` field)
+  - Persist level progress across restarts
+- [ ] Level transition on victory
+  - Increment level after winning
+  - Apply level-specific resources on transition
+- [ ] Level selection via ConfigMap
+  - Allow starting at specific level for testing
 
-### RBAC System
-- [ ] RBAC template system
-  - Define templated Roles/RoleBindings per level
-  - Dynamic application based on current level
-  - Clean removal on level transition
+### Level 0: The Intern (Current Default)
+- [ ] Create `cheat-map` ConfigMap with mine positions in plain text
+- [ ] Player can `kubectl get cm cheat-map -o yaml` to see mines
+- [ ] No RBAC restrictions
 
-### Level Implementations
+### Level 1: The Junior
+- [ ] Store map in `cheat-map` Secret (Base64 encoded)
+- [ ] Restrict player RBAC: remove `get configmaps`
+- [ ] Player must decode Base64 to read map
 
-#### Level 0: The Intern
-- [ ] Level 0 setup - ConfigMap cheat
-  - Create `ConfigMap` named `map` with mine positions
-  - Player can `kubectl get cm map -o yaml` to cheat
-  - No restrictions
+### Level 2: The Infiltrator
+- [ ] Inject map data into game pod environment variables
+- [ ] Restrict player RBAC: remove `get secrets`
+- [ ] Player must `kubectl exec` into a pod to read env
 
-#### Level 1: The Junior  
-- [ ] Level 1 RBAC - Restrict ConfigMap access
-  - Remove `get configmaps` from player Role
-- [ ] Level 1 setup - Secret cheat
-  - Store map in `Secret` (Base64 encoded)
-  - Player must `kubectl get secret` and decode
+### Level 3: The Heart of the Machine
+- [ ] Write map to file inside Gamemaster pod (`/tmp/map.txt`)
+- [ ] Remove env vars from game pods
+- [ ] Player must exec into Gamemaster to read file
 
-#### Level 2: The Infiltrator
-- [ ] Level 2 RBAC - Restrict Secret access
-  - Remove `get secrets` from player Role
-- [ ] Level 2 setup - Environment variable cheat
-  - Inject map data into pod environment variables
-  - Player must `kubectl exec` to read env
-
-#### Level 3: The Heart of the Machine
-- [ ] Level 3 setup - Gamemaster filesystem cheat
-  - Write map to file in Gamemaster pod
-  - Player must exec into Gamemaster to read
-  - No env vars in game pods
-
-#### Level 4: Amnesia
-- [ ] Level 4+ cleanup - Remove static leaks
-  - Map only in memory (GameState Secret, but encrypted/obfuscated)
-  - No ConfigMaps, no readable Secrets, no env vars, no files
-  - Forces "legitimate" gameplay
-
-### Level Selection
-- [ ] Level skip/select mechanism
-  - Allow starting at specific level (for testing/speedruns)
-  - Require flag from previous level to unlock (optional)
+### Level 4: Amnesia
+- [ ] Remove all static map leaks (no CM, no Secret readable, no env, no files)
+- [ ] Map only exists in encrypted game state Secret
+- [ ] Forces "legitimate" gameplay - no cheating possible
 
 ---
 
-## Phase 5: Security Hardening + Webhook (Levels 5-9)
+## Phase 3: Security Hardening + Webhook (Levels 5-9)
 
-**Goal:** Implement advanced levels requiring admission webhook
-
-**Milestone:** `All 10 Levels Complete`
+**Goal:** Advanced levels requiring admission webhook mechanics.
 
 ### Admission Webhook Setup
-- [ ] Webhook server setup
-  - HTTP server for admission reviews
-  - Integration with controller-runtime
-- [ ] TLS certificate management
-  - Self-signed cert generation
-  - Certificate rotation strategy
-  - Mount certs into webhook pod
-- [ ] ValidatingWebhookConfiguration manifest
-  - Target DELETE operations on pods
-  - Namespace selector for `podsweeper-game`
-  - Failure policy configuration
-- [ ] Base validation logic
-  - Parse AdmissionReview requests
-  - Return Allow/Deny responses
-  - Include meaningful denial messages
-- [ ] Level-aware validation
-  - Check current level from game state
-  - Route to appropriate validation rules
-- [ ] Helm: Webhook resources
-  - ValidatingWebhookConfiguration template
-  - Service for webhook endpoint
-- [ ] Helm: Certificate management
-  - cert-manager integration OR
-  - Self-signed cert Job
+- [ ] Webhook server (HTTP server for admission reviews)
+- [ ] TLS certificate management (self-signed or cert-manager)
+- [ ] ValidatingWebhookConfiguration for DELETE operations
+- [ ] Level-aware validation routing
 
 ### Level 5: The Firewall (NetworkPolicies)
-- [ ] Level 5 NetworkPolicy - Block debug endpoint
-  - Gamemaster exposes `:9999/debug/map`
-  - NetworkPolicy blocks all traffic to this port
-  - Player must create "proxy pod" with whitelisted labels
+- [ ] Gamemaster exposes debug endpoint `:9999/debug/map`
+- [ ] NetworkPolicy blocks traffic to debug port
+- [ ] Player must create proxy pod with whitelisted labels
 
 ### Level 6: The Sand Grain (Finalizers)
-- [ ] Level 6 Finalizer injection
-  - Add `podsweeper.io/wait` finalizer to 10-100% of pods
-  - Pods stuck in `Terminating` state until finalizer removed
-- [ ] Finalizer validation
-  - Webhook validates finalizer was properly removed
-  - Deny deletion if finalizer still present (for game logic)
+- [ ] Add `podsweeper.io/wait` finalizer to some pods
+- [ ] Pods stuck in Terminating until finalizer removed
+- [ ] Player must patch pods to remove finalizer before delete
 
 ### Level 7: Port-Hacking (Dynamic Ports)
-- [ ] Hint endpoint implementation
-  - Hint pods serve on randomized port (1024-65535)
-  - Port stored in pod annotation
-- [ ] Level 7 Dynamic port system
-  - Generate random port per hint pod
-  - Store in `podsweeper.io/hint-port` annotation
-  - Player must read annotation, then curl correct port
+- [ ] Hint pods serve on randomized port (1024-65535)
+- [ ] Port stored in `podsweeper.io/hint-port` annotation
+- [ ] Player must read annotation, then curl correct port
 
 ### Level 8: The Firing Window (Timing)
-- [ ] Timing validation
-  - Webhook captures request timestamp
-  - Only accept deletions in first 100ms of each second
-- [ ] Level 8 Timing enforcement
-  - Return detailed error: "Request at 450ms. Target: [0-100ms]"
-  - Force player to write synchronized deletion script
+- [ ] Webhook only accepts deletions in first 100ms of each second
+- [ ] Return detailed timing error message
+- [ ] Player must write synchronized deletion script
 
 ### Level 9: RBAC Blackout
-- [ ] Level 9 Minimal RBAC
-  - Remove: `exec`, `describe`, `get -o yaml`
-  - Keep: `delete pods`, `get events`
-  - Hints leaked via Kubernetes Events only
-
-### Orchestration
-- [ ] Security resource applicator
-  - Apply/remove NetworkPolicies per level
-  - Apply/remove webhook configurations per level
-  - Coordinate RBAC changes
+- [ ] Remove: `exec`, `describe`, `get -o yaml`
+- [ ] Keep: `delete pods`, `get events`
+- [ ] Hints leaked via Kubernetes Events only
 
 ---
 
-## Phase 6: Polish & Victory
+## Phase 4: Pre-Release Polish
 
-**Goal:** Complete the game experience with rewards and visual feedback
+**Goal:** Production-ready quality for public release.
 
-**Milestone:** `Full Game Experience`
+### CI/CD
+- [ ] GitHub Actions: Build and push gamemaster image
+- [ ] GitHub Actions: Build and push hint-agent image
+- [ ] Semantic versioning tags
 
-### Victory Experience
-- [ ] Victory pod spawner
-  - Spawn `victory` pod on game completion
-  - Pod stays running for player to inspect
-- [ ] ASCII art assets - Victory
-  - Unique trophy art per level (10 designs)
-  - Store as embedded strings or ConfigMap
-- [ ] Flag generation system
-  - Generate obfuscated flag per level
-  - XOR or Base64 encoding (spoiler prevention)
-  - Deliver via logs, env, or secret (level-dependent)
+### Health & Observability
+- [ ] Health endpoints (`/healthz`, `/readyz`)
+- [ ] Kubernetes Event emission for game actions
 
-### Defeat Experience
-- [ ] Explosion sequence
-  - Dramatic namespace wipe animation (staggered deletes)
-  - Final explosion pod with logs
-- [ ] ASCII art assets - Explosion
-  - Nuclear explosion / mushroom cloud art
-  - "GAME OVER" messaging
+### Testing
+- [ ] Automated E2E test framework (kind + test harness)
+- [ ] E2E tests for all levels
+- [ ] Webhook unit tests
 
 ### Game Quality
-- [ ] Seed-based reproducibility
-  - Same seed = same mine placement
-  - Allow sharing seeds for challenges
-- [ ] Installation verification
-  - `helm test` or verify script
-  - Check all components running
-  - Validate webhook connectivity
+- [ ] Unique ASCII art per level (victory/defeat)
+- [ ] Flag generation system for CTF scoring
+- [ ] Seed sharing for challenges
+- [ ] Installation verification script
 
 ---
 
-## Phase 7: Documentation & Release
+## Phase 5: Documentation & Release
 
-**Goal:** Ready for public release
-
-**Milestone:** `v1.0 Release`
+**Goal:** Ready for v1.0 public release.
 
 ### Player Documentation
-- [ ] Player quickstart guide
-  - Installation steps (Helm)
-  - First game walkthrough
-  - Basic kubectl commands
-- [ ] kubectl cheat sheet
-  - Common commands for gameplay
-  - How to read hints, check status
-- [ ] Level hints document
-  - Subtle hints for each level (no solutions)
-  - Concepts to research per level
+- [ ] Quickstart guide (installation, first game)
+- [ ] kubectl cheat sheet for gameplay
+- [ ] Level hints document (concepts to research, no solutions)
 
 ### Developer Documentation
 - [ ] Contributing guide
-  - Development setup
-  - PR process
-  - Code style guidelines
 - [ ] Architecture documentation
-  - System design overview
-  - Component interactions
-  - State machine diagrams
 
 ### Release Assets
-- [ ] Demo GIF/Video
-  - Recording of Level 0 gameplay
-  - Show click → hint → victory flow
-- [ ] Kustomize alternative
-  - For users who prefer Kustomize over Helm
-  - Base + overlays structure
+- [ ] Demo GIF/video
+- [ ] Helm chart (optional, Kustomize already works)
 
 ---
 
-## Quick Start: First 5 Tasks
+## What to Work On Next
 
-If you want to start coding immediately, tackle these first:
+**Immediate priority: Phase 2 - Level Progression**
 
-1. **Project scaffolding**
-   - `go mod init github.com/zwindler/podsweeper`
-   - Set up `cmd/gamemaster/main.go`
-   - Create Makefile with basic targets
+Start with:
+1. **Level 0 setup** - Create `cheat-map` ConfigMap on game start
+2. **Level transition** - Increment level on victory, restart with new level config
+3. **Level 1-4 implementations** - Progressive RBAC restrictions
 
-2. **Game state data model**
-   - Define `GameState` struct in `pkg/game/state.go`
-   - Include: `MineMap [][]bool`, `Revealed [][]bool`, `Level int`, `Seed int64`
-   - Add JSON tags and serialization tests
-
-3. **Grid generator**
-   - Create `pkg/grid/generator.go`
-   - Function: `GenerateGrid(size int, seed int64, density float64) *GameState`
-   - Unit tests for edge cases
-
-4. **Mine placement algorithm**
-   - Implement in grid generator
-   - Use `math/rand` with seed for reproducibility
-   - Ensure mines don't exceed density percentage
-
-5. **HTTP server implementation (Hint Agent)**
-   - Create `cmd/hint-agent/main.go`
-   - Minimal server: read `HINT_VALUE` env, serve on `/`
-   - Target: <100 lines of code
+This adds actual gameplay depth and makes the CTF aspect work.
 
 ---
 
-## Dependency Graph
+## Recent Fixes
 
-```
-Phase 1: Foundation
-    └── All other phases depend on this
-
-Phase 2: Deployment
-    ├── Depends on: Phase 1 (need something to deploy)
-    └── Enables: External testing, CI/CD
-
-Phase 3: Testing
-    ├── Depends on: Phase 2 (need deployable artifacts)
-    └── Enables: Confident iteration on Phases 4-6
-
-Phase 4: Levels 0-4
-    ├── Depends on: Phase 1 (core game), Phase 3 (tests)
-    └── No webhook required
-
-Phase 5: Levels 5-9 + Webhook
-    ├── Depends on: Phase 4 (level infrastructure)
-    └── Introduces admission webhook
-
-Phase 6: Polish
-    ├── Depends on: Phase 5 (all levels working)
-    └── Can be parallelized with Phase 5
-
-Phase 7: Documentation
-    ├── Depends on: Phase 6 (complete game)
-    └── Can start drafts earlier
-```
-
----
-
-## Progress Tracking
-
-Update this section as you complete tasks:
-
-| Phase | Status | Progress |
-|-------|--------|----------|
-| Phase 1: Foundation | **Complete** | 18/18 |
-| Phase 2: Deployment | In Progress | 6/8 |
-| Phase 3: Testing | In Progress | 3/5 |
-| Phase 4: Levels 0-4 | Not Started | 0/12 |
-| Phase 5: Levels 5-9 + Webhook | Not Started | 0/16 |
-| Phase 6: Polish | Partial | 2/7 |
-| Phase 7: Documentation | Not Started | 0/7 |
-| **Total** | | **29/73** |
-
-### Recent Fixes
-- Fixed race condition: Save game state BEFORE cleanup to prevent old deletions triggering wrong handlers
-- Added `WaitForCleanup()` to wait for all pods to be deleted before spawning new grid
-- Set `terminationGracePeriodSeconds=1` on all game pods for fast termination (~2s vs ~30s)
+- Fixed race condition: Save game state BEFORE cleanup
+- Added `WaitForCleanup()` to wait for all pods to be deleted before spawning
+- Set `terminationGracePeriodSeconds=1` on all game pods (~2s vs ~30s termination)
 
 ---
 
