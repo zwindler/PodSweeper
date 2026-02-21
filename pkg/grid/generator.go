@@ -8,50 +8,103 @@ import (
 	"github.com/zwindler/podsweeper/pkg/game"
 )
 
-// DefaultSize is the default grid dimension.
-const DefaultSize = 10
+// Level constants define the valid range of game levels.
+const (
+	MinLevel = 0
+	MaxLevel = 9
+)
 
-// DefaultMineDensity is the default percentage of cells that are mines.
-const DefaultMineDensity = 0.15 // 15%
+// Tier definitions - each tier has a specific grid size and mine count.
+// Levels are grouped into 3 tiers for progressive difficulty.
+const (
+	// Tier 1 (Levels 0-3): Tutorial phase
+	// Small grid, learn kubectl basics manually
+	Tier1Size  = 5
+	Tier1Mines = 4
 
-// MinMineDensity is the minimum allowed mine density.
-const MinMineDensity = 0.05 // 5%
+	// Tier 2 (Levels 4-6): Intermediate phase
+	// Medium grid, manual play becomes tedious, scripting helps
+	Tier2Size  = 10
+	Tier2Mines = 15
 
-// MaxMineDensity is the maximum allowed mine density.
-const MaxMineDensity = 0.50 // 50%
+	// Tier 3 (Levels 7-9): Expert phase
+	// Large grid, automation required to succeed
+	Tier3Size  = 20
+	Tier3Mines = 60
+)
+
+// LevelConfig holds the grid configuration for a specific level.
+type LevelConfig struct {
+	Level     int
+	Size      int
+	MineCount int
+	Tier      int
+}
+
+// GetLevelConfig returns the grid configuration for a given level.
+// Levels 0-3 use Tier 1, Levels 4-6 use Tier 2, Levels 7-9 use Tier 3.
+func GetLevelConfig(level int) LevelConfig {
+	// Clamp level to valid range
+	if level < MinLevel {
+		level = MinLevel
+	}
+	if level > MaxLevel {
+		level = MaxLevel
+	}
+
+	switch {
+	case level <= 3:
+		return LevelConfig{
+			Level:     level,
+			Size:      Tier1Size,
+			MineCount: Tier1Mines,
+			Tier:      1,
+		}
+	case level <= 6:
+		return LevelConfig{
+			Level:     level,
+			Size:      Tier2Size,
+			MineCount: Tier2Mines,
+			Tier:      2,
+		}
+	default:
+		return LevelConfig{
+			Level:     level,
+			Size:      Tier3Size,
+			MineCount: Tier3Mines,
+			Tier:      3,
+		}
+	}
+}
+
+// GetTierDescription returns a human-readable description of the tier.
+func GetTierDescription(tier int) string {
+	switch tier {
+	case 1:
+		return "Tutorial (5×5, 4 mines) - Learn kubectl basics"
+	case 2:
+		return "Intermediate (10×10, 15 mines) - Scripting helps"
+	case 3:
+		return "Expert (20×20, 60 mines) - Automation required"
+	default:
+		return "Unknown tier"
+	}
+}
 
 // Config holds the configuration for grid generation.
 type Config struct {
 	// Size is the grid dimension (Size x Size).
-	// Default: 10
 	Size int
 
 	// Seed is the random seed for reproducible mine placement.
 	// If 0, a random seed will be used.
 	Seed int64
 
-	// MineDensity is the percentage of cells that should be mines (0.0 to 1.0).
-	// Default: 0.15 (15%)
-	MineDensity float64
+	// MineCount is the exact number of mines to place.
+	MineCount int
 
-	// MinMineCount is the minimum number of mines regardless of density.
-	// Default: 1
-	MinMineCount int
-
-	// MaxMineCount is the maximum number of mines regardless of density.
-	// If 0, no maximum is enforced.
-	MaxMineCount int
-}
-
-// DefaultConfig returns a Config with default values.
-func DefaultConfig() Config {
-	return Config{
-		Size:         DefaultSize,
-		Seed:         0,
-		MineDensity:  DefaultMineDensity,
-		MinMineCount: 1,
-		MaxMineCount: 0,
-	}
+	// Level is the game hardening level (0-9).
+	Level int
 }
 
 // Validate checks if the config values are valid and returns an error if not.
@@ -62,46 +115,29 @@ func (c *Config) Validate() error {
 	if c.Size > 100 {
 		return fmt.Errorf("size must be at most 100, got %d", c.Size)
 	}
-	if c.MineDensity < MinMineDensity {
-		return fmt.Errorf("mine density must be at least %.2f, got %.2f", MinMineDensity, c.MineDensity)
+	if c.MineCount < 1 {
+		return fmt.Errorf("mine count must be at least 1, got %d", c.MineCount)
 	}
-	if c.MineDensity > MaxMineDensity {
-		return fmt.Errorf("mine density must be at most %.2f, got %.2f", MaxMineDensity, c.MineDensity)
+	totalCells := c.Size * c.Size
+	maxMines := totalCells - 1 // Need at least one safe cell
+	if c.MineCount > maxMines {
+		return fmt.Errorf("mine count (%d) exceeds maximum for grid size (%d)", c.MineCount, maxMines)
 	}
-	if c.MinMineCount < 0 {
-		return fmt.Errorf("min mine count cannot be negative, got %d", c.MinMineCount)
-	}
-	if c.MaxMineCount < 0 {
-		return fmt.Errorf("max mine count cannot be negative, got %d", c.MaxMineCount)
-	}
-	if c.MaxMineCount > 0 && c.MinMineCount > c.MaxMineCount {
-		return fmt.Errorf("min mine count (%d) cannot exceed max mine count (%d)", c.MinMineCount, c.MaxMineCount)
+	if c.Level < MinLevel || c.Level > MaxLevel {
+		return fmt.Errorf("level must be between %d and %d, got %d", MinLevel, MaxLevel, c.Level)
 	}
 	return nil
 }
 
-// CalculateMineCount returns the number of mines based on config.
-func (c *Config) CalculateMineCount() int {
-	totalCells := c.Size * c.Size
-	mineCount := int(float64(totalCells) * c.MineDensity)
-
-	// Enforce minimum
-	if mineCount < c.MinMineCount {
-		mineCount = c.MinMineCount
+// ConfigForLevel creates a Config based on the level's tier settings.
+func ConfigForLevel(level int, seed int64) Config {
+	lc := GetLevelConfig(level)
+	return Config{
+		Size:      lc.Size,
+		Seed:      seed,
+		MineCount: lc.MineCount,
+		Level:     level,
 	}
-
-	// Enforce maximum
-	if c.MaxMineCount > 0 && mineCount > c.MaxMineCount {
-		mineCount = c.MaxMineCount
-	}
-
-	// Cannot exceed total cells - 1 (need at least one safe cell)
-	maxPossible := totalCells - 1
-	if mineCount > maxPossible {
-		mineCount = maxPossible
-	}
-
-	return mineCount
 }
 
 // Generator creates game grids with randomly placed mines.
@@ -128,15 +164,16 @@ func NewGenerator(config Config) (*Generator, error) {
 	}, nil
 }
 
-// NewDefaultGenerator creates a generator with default configuration.
-func NewDefaultGenerator() *Generator {
-	gen, _ := NewGenerator(DefaultConfig())
-	return gen
+// NewGeneratorForLevel creates a generator configured for a specific level.
+func NewGeneratorForLevel(level int, seed int64) (*Generator, error) {
+	config := ConfigForLevel(level, seed)
+	return NewGenerator(config)
 }
 
 // Generate creates a new GameState with mines randomly placed.
 func (g *Generator) Generate() *game.GameState {
 	state := game.NewGameState(g.config.Size, g.config.Seed)
+	state.Level = g.config.Level
 	g.placeMines(state)
 	return state
 }
@@ -147,6 +184,7 @@ func (g *Generator) GenerateWithSeed(seed int64) *game.GameState {
 	// Create a new RNG with the specific seed
 	rng := rand.New(rand.NewSource(seed))
 	state := game.NewGameState(g.config.Size, seed)
+	state.Level = g.config.Level
 	g.placeMinesWithRNG(state, rng)
 	return state
 }
@@ -158,7 +196,6 @@ func (g *Generator) placeMines(state *game.GameState) {
 
 // placeMinesWithRNG places mines using a specific RNG instance.
 func (g *Generator) placeMinesWithRNG(state *game.GameState, rng *rand.Rand) {
-	mineCount := g.config.CalculateMineCount()
 	totalCells := g.config.Size * g.config.Size
 
 	// Create a slice of all possible positions
@@ -173,8 +210,8 @@ func (g *Generator) placeMinesWithRNG(state *game.GameState, rng *rand.Rand) {
 		positions[i], positions[j] = positions[j], positions[i]
 	}
 
-	// Place mines at the first mineCount positions
-	for i := 0; i < mineCount; i++ {
+	// Place mines at the first MineCount positions
+	for i := 0; i < g.config.MineCount; i++ {
 		pos := positions[i]
 		x := pos / g.config.Size
 		y := pos % g.config.Size
@@ -187,89 +224,29 @@ func (g *Generator) Config() Config {
 	return g.config
 }
 
-// GenerateGrid is a convenience function that creates a game with default settings.
-func GenerateGrid(size int, seed int64, density float64) (*game.GameState, error) {
-	config := Config{
-		Size:         size,
-		Seed:         seed,
-		MineDensity:  density,
-		MinMineCount: 1,
-		MaxMineCount: 0,
-	}
-
-	gen, err := NewGenerator(config)
+// GenerateForLevel is a convenience function that creates a game for a specific level.
+func GenerateForLevel(level int, seed int64) (*game.GameState, error) {
+	gen, err := NewGeneratorForLevel(level, seed)
 	if err != nil {
 		return nil, err
 	}
-
 	return gen.GenerateWithSeed(seed), nil
 }
 
-// GenerateDefaultGrid creates a 10x10 grid with 15% mine density.
-func GenerateDefaultGrid(seed int64) *game.GameState {
-	state, _ := GenerateGrid(DefaultSize, seed, DefaultMineDensity)
-	return state
+// ValidateLevel checks if a level is within the valid range.
+func ValidateLevel(level int) error {
+	if level < MinLevel || level > MaxLevel {
+		return fmt.Errorf("level must be between %d and %d, got %d", MinLevel, MaxLevel, level)
+	}
+	return nil
 }
 
-// DifficultyPreset represents predefined difficulty levels.
-type DifficultyPreset string
-
-const (
-	// DifficultyEasy is 8x8 with 10% mines (6-7 mines).
-	DifficultyEasy DifficultyPreset = "easy"
-	// DifficultyMedium is 10x10 with 15% mines (15 mines).
-	DifficultyMedium DifficultyPreset = "medium"
-	// DifficultyHard is 16x16 with 20% mines (51 mines).
-	DifficultyHard DifficultyPreset = "hard"
-	// DifficultyExpert is 20x20 with 25% mines (100 mines).
-	DifficultyExpert DifficultyPreset = "expert"
-)
-
-// GetDifficultyConfig returns a Config for the given difficulty preset.
-func GetDifficultyConfig(preset DifficultyPreset) Config {
-	switch preset {
-	case DifficultyEasy:
-		return Config{
-			Size:         8,
-			MineDensity:  0.10,
-			MinMineCount: 5,
-			MaxMineCount: 10,
-		}
-	case DifficultyMedium:
-		return Config{
-			Size:         10,
-			MineDensity:  0.15,
-			MinMineCount: 10,
-			MaxMineCount: 20,
-		}
-	case DifficultyHard:
-		return Config{
-			Size:         16,
-			MineDensity:  0.20,
-			MinMineCount: 40,
-			MaxMineCount: 60,
-		}
-	case DifficultyExpert:
-		return Config{
-			Size:         20,
-			MineDensity:  0.25,
-			MinMineCount: 80,
-			MaxMineCount: 120,
-		}
-	default:
-		return DefaultConfig()
+// AllLevelConfigs returns the configuration for all levels.
+// Useful for displaying level selection or documentation.
+func AllLevelConfigs() []LevelConfig {
+	configs := make([]LevelConfig, MaxLevel+1)
+	for i := MinLevel; i <= MaxLevel; i++ {
+		configs[i] = GetLevelConfig(i)
 	}
-}
-
-// GenerateWithDifficulty creates a game grid with the specified difficulty.
-func GenerateWithDifficulty(preset DifficultyPreset, seed int64) (*game.GameState, error) {
-	config := GetDifficultyConfig(preset)
-	config.Seed = seed
-
-	gen, err := NewGenerator(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return gen.GenerateWithSeed(seed), nil
+	return configs
 }

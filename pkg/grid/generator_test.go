@@ -4,17 +4,95 @@ import (
 	"testing"
 )
 
-func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
+func TestGetLevelConfig(t *testing.T) {
+	tests := []struct {
+		level         int
+		expectedSize  int
+		expectedMines int
+		expectedTier  int
+	}{
+		// Tier 1: Levels 0-3
+		{0, Tier1Size, Tier1Mines, 1},
+		{1, Tier1Size, Tier1Mines, 1},
+		{2, Tier1Size, Tier1Mines, 1},
+		{3, Tier1Size, Tier1Mines, 1},
+		// Tier 2: Levels 4-6
+		{4, Tier2Size, Tier2Mines, 2},
+		{5, Tier2Size, Tier2Mines, 2},
+		{6, Tier2Size, Tier2Mines, 2},
+		// Tier 3: Levels 7-9
+		{7, Tier3Size, Tier3Mines, 3},
+		{8, Tier3Size, Tier3Mines, 3},
+		{9, Tier3Size, Tier3Mines, 3},
+	}
 
-	if config.Size != DefaultSize {
-		t.Errorf("expected size %d, got %d", DefaultSize, config.Size)
+	for _, tt := range tests {
+		t.Run("level_"+string(rune('0'+tt.level)), func(t *testing.T) {
+			config := GetLevelConfig(tt.level)
+
+			if config.Size != tt.expectedSize {
+				t.Errorf("Level %d: expected size %d, got %d", tt.level, tt.expectedSize, config.Size)
+			}
+			if config.MineCount != tt.expectedMines {
+				t.Errorf("Level %d: expected mines %d, got %d", tt.level, tt.expectedMines, config.MineCount)
+			}
+			if config.Tier != tt.expectedTier {
+				t.Errorf("Level %d: expected tier %d, got %d", tt.level, tt.expectedTier, config.Tier)
+			}
+			if config.Level != tt.level {
+				t.Errorf("Level %d: expected level %d in config, got %d", tt.level, tt.level, config.Level)
+			}
+		})
 	}
-	if config.MineDensity != DefaultMineDensity {
-		t.Errorf("expected density %f, got %f", DefaultMineDensity, config.MineDensity)
+}
+
+func TestGetLevelConfigClamping(t *testing.T) {
+	// Level below minimum should clamp to 0
+	config := GetLevelConfig(-5)
+	if config.Level != 0 {
+		t.Errorf("expected level 0 for negative input, got %d", config.Level)
 	}
-	if config.MinMineCount != 1 {
-		t.Errorf("expected min mine count 1, got %d", config.MinMineCount)
+	if config.Tier != 1 {
+		t.Errorf("expected tier 1 for negative input, got %d", config.Tier)
+	}
+
+	// Level above maximum should clamp to 9
+	config = GetLevelConfig(99)
+	if config.Level != 9 {
+		t.Errorf("expected level 9 for overflow, got %d", config.Level)
+	}
+	if config.Tier != 3 {
+		t.Errorf("expected tier 3 for overflow, got %d", config.Tier)
+	}
+}
+
+func TestGetTierDescription(t *testing.T) {
+	tests := []struct {
+		tier     int
+		contains string
+	}{
+		{1, "Tutorial"},
+		{2, "Intermediate"},
+		{3, "Expert"},
+		{99, "Unknown"},
+	}
+
+	for _, tt := range tests {
+		desc := GetTierDescription(tt.tier)
+		if desc == "" {
+			t.Errorf("Tier %d: description should not be empty", tt.tier)
+		}
+		// Just check it contains expected keyword
+		found := false
+		for i := 0; i < len(desc)-len(tt.contains)+1; i++ {
+			if desc[i:i+len(tt.contains)] == tt.contains {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Tier %d: expected description to contain %q, got %q", tt.tier, tt.contains, desc)
+		}
 	}
 }
 
@@ -25,70 +103,73 @@ func TestConfigValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "valid default",
-			config:  DefaultConfig(),
+			name:    "valid tier 1",
+			config:  ConfigForLevel(0, 12345),
+			wantErr: false,
+		},
+		{
+			name:    "valid tier 2",
+			config:  ConfigForLevel(5, 12345),
+			wantErr: false,
+		},
+		{
+			name:    "valid tier 3",
+			config:  ConfigForLevel(9, 12345),
 			wantErr: false,
 		},
 		{
 			name: "size too small",
 			config: Config{
-				Size:        0,
-				MineDensity: 0.15,
+				Size:      0,
+				MineCount: 5,
+				Level:     0,
 			},
 			wantErr: true,
 		},
 		{
 			name: "size too large",
 			config: Config{
-				Size:        101,
-				MineDensity: 0.15,
+				Size:      101,
+				MineCount: 5,
+				Level:     0,
 			},
 			wantErr: true,
 		},
 		{
-			name: "density too low",
+			name: "mine count too low",
 			config: Config{
-				Size:        10,
-				MineDensity: 0.01,
+				Size:      10,
+				MineCount: 0,
+				Level:     0,
 			},
 			wantErr: true,
 		},
 		{
-			name: "density too high",
+			name: "mine count exceeds grid",
 			config: Config{
-				Size:        10,
-				MineDensity: 0.60,
+				Size:      5,
+				MineCount: 25, // 5x5 = 25, need at least 1 safe cell
+				Level:     0,
 			},
 			wantErr: true,
 		},
 		{
-			name: "negative min mine count",
+			name: "level too low",
 			config: Config{
-				Size:         10,
-				MineDensity:  0.15,
-				MinMineCount: -1,
+				Size:      10,
+				MineCount: 5,
+				Level:     -1,
 			},
 			wantErr: true,
 		},
 		{
-			name: "min exceeds max",
+			name: "level too high",
 			config: Config{
-				Size:         10,
-				MineDensity:  0.15,
-				MinMineCount: 20,
-				MaxMineCount: 10,
+				Size:      10,
+				MineCount: 5,
+				Level:     10,
 			},
 			wantErr: true,
-		},
-		{
-			name: "valid custom config",
-			config: Config{
-				Size:         15,
-				MineDensity:  0.20,
-				MinMineCount: 10,
-				MaxMineCount: 50,
-			},
-			wantErr: false,
 		},
 	}
 
@@ -102,74 +183,32 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
-func TestConfigCalculateMineCount(t *testing.T) {
-	tests := []struct {
-		name     string
-		config   Config
-		expected int
-	}{
-		{
-			name: "default 10x10 15%",
-			config: Config{
-				Size:         10,
-				MineDensity:  0.15,
-				MinMineCount: 1,
-			},
-			expected: 15, // 100 * 0.15 = 15
-		},
-		{
-			name: "enforces minimum",
-			config: Config{
-				Size:         5,
-				MineDensity:  0.05,
-				MinMineCount: 5,
-			},
-			expected: 5, // 25 * 0.05 = 1, but min is 5
-		},
-		{
-			name: "enforces maximum",
-			config: Config{
-				Size:         10,
-				MineDensity:  0.50,
-				MinMineCount: 1,
-				MaxMineCount: 20,
-			},
-			expected: 20, // 100 * 0.50 = 50, but max is 20
-		},
-		{
-			name: "cannot exceed total cells minus 1",
-			config: Config{
-				Size:         3,
-				MineDensity:  0.50,
-				MinMineCount: 1,
-				MaxMineCount: 0, // no max
-			},
-			expected: 4, // 9 * 0.50 = 4, and 4 < 8 (9-1), so 4
-		},
-		{
-			name: "tiny grid with high density",
-			config: Config{
-				Size:         2,
-				MineDensity:  0.50,
-				MinMineCount: 1,
-				MaxMineCount: 0,
-			},
-			expected: 2, // 4 * 0.50 = 2, max possible is 3
-		},
-	}
+func TestConfigForLevel(t *testing.T) {
+	seed := int64(12345)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.config.CalculateMineCount()
-			if result != tt.expected {
-				t.Errorf("CalculateMineCount() = %d, expected %d", result, tt.expected)
-			}
-		})
+	for level := 0; level <= 9; level++ {
+		config := ConfigForLevel(level, seed)
+
+		if config.Seed != seed {
+			t.Errorf("Level %d: expected seed %d, got %d", level, seed, config.Seed)
+		}
+		if config.Level != level {
+			t.Errorf("Level %d: expected level in config, got %d", level, config.Level)
+		}
+
+		// Verify config matches expected tier
+		lc := GetLevelConfig(level)
+		if config.Size != lc.Size {
+			t.Errorf("Level %d: size mismatch", level)
+		}
+		if config.MineCount != lc.MineCount {
+			t.Errorf("Level %d: mine count mismatch", level)
+		}
 	}
 }
 
 func TestNewGenerator(t *testing.T) {
-	config := DefaultConfig()
+	config := ConfigForLevel(5, 12345)
 	gen, err := NewGenerator(config)
 
 	if err != nil {
@@ -182,8 +221,9 @@ func TestNewGenerator(t *testing.T) {
 
 func TestNewGeneratorInvalidConfig(t *testing.T) {
 	config := Config{
-		Size:        0, // invalid
-		MineDensity: 0.15,
+		Size:      0, // invalid
+		MineCount: 5,
+		Level:     0,
 	}
 
 	_, err := NewGenerator(config)
@@ -192,51 +232,50 @@ func TestNewGeneratorInvalidConfig(t *testing.T) {
 	}
 }
 
-func TestNewDefaultGenerator(t *testing.T) {
-	gen := NewDefaultGenerator()
-	if gen == nil {
-		t.Fatal("generator should not be nil")
-	}
-	if gen.Config().Size != DefaultSize {
-		t.Errorf("expected size %d, got %d", DefaultSize, gen.Config().Size)
+func TestNewGeneratorForLevel(t *testing.T) {
+	for level := 0; level <= 9; level++ {
+		gen, err := NewGeneratorForLevel(level, 12345)
+		if err != nil {
+			t.Fatalf("Level %d: NewGeneratorForLevel failed: %v", level, err)
+		}
+
+		config := gen.Config()
+		expected := GetLevelConfig(level)
+
+		if config.Size != expected.Size {
+			t.Errorf("Level %d: expected size %d, got %d", level, expected.Size, config.Size)
+		}
+		if config.MineCount != expected.MineCount {
+			t.Errorf("Level %d: expected mines %d, got %d", level, expected.MineCount, config.MineCount)
+		}
+		if config.Level != level {
+			t.Errorf("Level %d: expected level in config, got %d", level, config.Level)
+		}
 	}
 }
 
 func TestGenerate(t *testing.T) {
-	config := Config{
-		Size:         10,
-		Seed:         12345,
-		MineDensity:  0.15,
-		MinMineCount: 1,
-	}
-
-	gen, err := NewGenerator(config)
+	gen, err := NewGeneratorForLevel(5, 12345)
 	if err != nil {
-		t.Fatalf("NewGenerator failed: %v", err)
+		t.Fatalf("NewGeneratorForLevel failed: %v", err)
 	}
 
 	state := gen.Generate()
 
-	if state.Size != 10 {
-		t.Errorf("expected size 10, got %d", state.Size)
+	expectedConfig := GetLevelConfig(5)
+	if state.Size != expectedConfig.Size {
+		t.Errorf("expected size %d, got %d", expectedConfig.Size, state.Size)
 	}
-	if state.MineCount < 1 {
-		t.Error("expected at least 1 mine")
+	if state.MineCount != expectedConfig.MineCount {
+		t.Errorf("expected %d mines, got %d", expectedConfig.MineCount, state.MineCount)
 	}
-	if state.MineCount > 50 {
-		t.Error("too many mines for 15% density")
+	if state.Level != 5 {
+		t.Errorf("expected level 5, got %d", state.Level)
 	}
 }
 
 func TestGenerateWithSeedReproducibility(t *testing.T) {
-	config := Config{
-		Size:         10,
-		Seed:         0, // will be overridden
-		MineDensity:  0.15,
-		MinMineCount: 1,
-	}
-
-	gen, _ := NewGenerator(config)
+	gen, _ := NewGeneratorForLevel(5, 0)
 	seed := int64(42)
 
 	// Generate two grids with the same seed
@@ -259,13 +298,7 @@ func TestGenerateWithSeedReproducibility(t *testing.T) {
 }
 
 func TestDifferentSeedsDifferentGrids(t *testing.T) {
-	config := Config{
-		Size:         10,
-		MineDensity:  0.15,
-		MinMineCount: 1,
-	}
-
-	gen, _ := NewGenerator(config)
+	gen, _ := NewGeneratorForLevel(5, 0)
 
 	state1 := gen.GenerateWithSeed(1)
 	state2 := gen.GenerateWithSeed(2)
@@ -286,107 +319,86 @@ func TestDifferentSeedsDifferentGrids(t *testing.T) {
 	}
 }
 
-func TestGenerateGrid(t *testing.T) {
-	state, err := GenerateGrid(10, 12345, 0.15)
-	if err != nil {
-		t.Fatalf("GenerateGrid failed: %v", err)
-	}
+func TestGenerateForLevel(t *testing.T) {
+	for level := 0; level <= 9; level++ {
+		state, err := GenerateForLevel(level, 12345)
+		if err != nil {
+			t.Fatalf("Level %d: GenerateForLevel failed: %v", level, err)
+		}
 
-	if state.Size != 10 {
-		t.Errorf("expected size 10, got %d", state.Size)
-	}
-	if state.Seed != 12345 {
-		t.Errorf("expected seed 12345, got %d", state.Seed)
-	}
-	if state.MineCount < 1 {
-		t.Error("expected at least 1 mine")
+		expected := GetLevelConfig(level)
+		if state.Size != expected.Size {
+			t.Errorf("Level %d: expected size %d, got %d", level, expected.Size, state.Size)
+		}
+		if state.MineCount != expected.MineCount {
+			t.Errorf("Level %d: expected mines %d, got %d", level, expected.MineCount, state.MineCount)
+		}
+		if state.Level != level {
+			t.Errorf("Level %d: expected level in state, got %d", level, state.Level)
+		}
+		if state.Seed != 12345 {
+			t.Errorf("Level %d: expected seed 12345, got %d", level, state.Seed)
+		}
 	}
 }
 
-func TestGenerateGridInvalid(t *testing.T) {
-	_, err := GenerateGrid(0, 12345, 0.15) // invalid size
-	if err == nil {
-		t.Error("expected error for invalid size")
+func TestValidateLevel(t *testing.T) {
+	// Valid levels
+	for level := 0; level <= 9; level++ {
+		if err := ValidateLevel(level); err != nil {
+			t.Errorf("Level %d should be valid, got error: %v", level, err)
+		}
 	}
 
-	_, err = GenerateGrid(10, 12345, 0.01) // invalid density
-	if err == nil {
-		t.Error("expected error for invalid density")
-	}
-}
-
-func TestGenerateDefaultGrid(t *testing.T) {
-	state := GenerateDefaultGrid(12345)
-
-	if state.Size != DefaultSize {
-		t.Errorf("expected size %d, got %d", DefaultSize, state.Size)
-	}
-	if state.MineCount == 0 {
-		t.Error("expected at least 1 mine")
+	// Invalid levels
+	invalidLevels := []int{-1, -10, 10, 99}
+	for _, level := range invalidLevels {
+		if err := ValidateLevel(level); err == nil {
+			t.Errorf("Level %d should be invalid", level)
+		}
 	}
 }
 
-func TestGetDifficultyConfig(t *testing.T) {
-	tests := []struct {
-		preset       DifficultyPreset
-		expectedSize int
-	}{
-		{DifficultyEasy, 8},
-		{DifficultyMedium, 10},
-		{DifficultyHard, 16},
-		{DifficultyExpert, 20},
-		{"unknown", DefaultSize}, // unknown defaults
+func TestAllLevelConfigs(t *testing.T) {
+	configs := AllLevelConfigs()
+
+	if len(configs) != 10 {
+		t.Errorf("expected 10 level configs, got %d", len(configs))
 	}
 
-	for _, tt := range tests {
-		t.Run(string(tt.preset), func(t *testing.T) {
-			config := GetDifficultyConfig(tt.preset)
-			if config.Size != tt.expectedSize {
-				t.Errorf("expected size %d, got %d", tt.expectedSize, config.Size)
-			}
-		})
+	for i, config := range configs {
+		if config.Level != i {
+			t.Errorf("config[%d].Level = %d, expected %d", i, config.Level, i)
+		}
 	}
 }
 
-func TestGenerateWithDifficulty(t *testing.T) {
-	presets := []DifficultyPreset{
-		DifficultyEasy,
-		DifficultyMedium,
-		DifficultyHard,
-		DifficultyExpert,
+func TestTierSizes(t *testing.T) {
+	// Verify tier constants are what we expect
+	if Tier1Size != 5 {
+		t.Errorf("Tier1Size = %d, expected 5", Tier1Size)
+	}
+	if Tier2Size != 10 {
+		t.Errorf("Tier2Size = %d, expected 10", Tier2Size)
+	}
+	if Tier3Size != 20 {
+		t.Errorf("Tier3Size = %d, expected 20", Tier3Size)
 	}
 
-	for _, preset := range presets {
-		t.Run(string(preset), func(t *testing.T) {
-			state, err := GenerateWithDifficulty(preset, 12345)
-			if err != nil {
-				t.Fatalf("GenerateWithDifficulty failed: %v", err)
-			}
-
-			config := GetDifficultyConfig(preset)
-			if state.Size != config.Size {
-				t.Errorf("expected size %d, got %d", config.Size, state.Size)
-			}
-			if state.MineCount < config.MinMineCount {
-				t.Errorf("expected at least %d mines, got %d", config.MinMineCount, state.MineCount)
-			}
-			if config.MaxMineCount > 0 && state.MineCount > config.MaxMineCount {
-				t.Errorf("expected at most %d mines, got %d", config.MaxMineCount, state.MineCount)
-			}
-		})
+	if Tier1Mines != 4 {
+		t.Errorf("Tier1Mines = %d, expected 4", Tier1Mines)
+	}
+	if Tier2Mines != 15 {
+		t.Errorf("Tier2Mines = %d, expected 15", Tier2Mines)
+	}
+	if Tier3Mines != 60 {
+		t.Errorf("Tier3Mines = %d, expected 60", Tier3Mines)
 	}
 }
 
 func TestMinesAreDistributed(t *testing.T) {
-	// Ensure mines aren't all clustered in one area
-	config := Config{
-		Size:         20,
-		Seed:         12345,
-		MineDensity:  0.20,
-		MinMineCount: 1,
-	}
-
-	gen, _ := NewGenerator(config)
+	// Test with Tier 3 (20x20, 60 mines) for good distribution
+	gen, _ := NewGeneratorForLevel(9, 12345)
 	state := gen.GenerateWithSeed(12345)
 
 	// Divide grid into 4 quadrants and count mines in each
@@ -417,64 +429,58 @@ func TestMinesAreDistributed(t *testing.T) {
 }
 
 func TestEveryGeneratedCellIsValid(t *testing.T) {
-	config := Config{
-		Size:         10,
-		Seed:         99999,
-		MineDensity:  0.20,
-		MinMineCount: 1,
-	}
+	for level := 0; level <= 9; level++ {
+		gen, _ := NewGeneratorForLevel(level, 99999)
+		state := gen.Generate()
 
-	gen, _ := NewGenerator(config)
-	state := gen.Generate()
-
-	minesFound := 0
-	for x := 0; x < state.Size; x++ {
-		for y := 0; y < state.Size; y++ {
-			if state.IsMine(x, y) {
-				minesFound++
+		minesFound := 0
+		for x := 0; x < state.Size; x++ {
+			for y := 0; y < state.Size; y++ {
+				if state.IsMine(x, y) {
+					minesFound++
+				}
 			}
 		}
-	}
 
-	if minesFound != state.MineCount {
-		t.Errorf("counted %d mines but MineCount is %d", minesFound, state.MineCount)
+		if minesFound != state.MineCount {
+			t.Errorf("Level %d: counted %d mines but MineCount is %d", level, minesFound, state.MineCount)
+		}
 	}
 }
 
 func TestAtLeastOneSafeCell(t *testing.T) {
-	// Even with max density, there should be at least one safe cell
-	config := Config{
-		Size:         5,
-		Seed:         12345,
-		MineDensity:  MaxMineDensity,
-		MinMineCount: 1,
-	}
+	// All levels should have at least one safe cell
+	for level := 0; level <= 9; level++ {
+		state, _ := GenerateForLevel(level, 12345)
 
-	gen, _ := NewGenerator(config)
-	state := gen.Generate()
-
-	totalCells := state.Size * state.Size
-	if state.MineCount >= totalCells {
-		t.Error("should have at least one safe cell")
+		totalCells := state.Size * state.Size
+		if state.MineCount >= totalCells {
+			t.Errorf("Level %d: should have at least one safe cell", level)
+		}
 	}
 }
 
 func TestGeneratorConfig(t *testing.T) {
-	config := Config{
-		Size:         15,
-		Seed:         123,
-		MineDensity:  0.20,
-		MinMineCount: 10,
-		MaxMineCount: 50,
-	}
+	gen, _ := NewGeneratorForLevel(7, 123)
+	config := gen.Config()
 
-	gen, _ := NewGenerator(config)
-	retrieved := gen.Config()
-
-	if retrieved.Size != config.Size {
-		t.Error("Config() should return the original config")
+	expected := GetLevelConfig(7)
+	if config.Size != expected.Size {
+		t.Error("Config() should return the original config size")
 	}
-	if retrieved.MineDensity != config.MineDensity {
-		t.Error("Config() should return the original config")
+	if config.MineCount != expected.MineCount {
+		t.Error("Config() should return the original config mine count")
+	}
+	if config.Level != 7 {
+		t.Error("Config() should return the original config level")
+	}
+}
+
+func TestLevelConstants(t *testing.T) {
+	if MinLevel != 0 {
+		t.Errorf("MinLevel = %d, expected 0", MinLevel)
+	}
+	if MaxLevel != 9 {
+		t.Errorf("MaxLevel = %d, expected 9", MaxLevel)
 	}
 }
