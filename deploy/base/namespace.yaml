@@ -1,0 +1,9 @@
+# PodSweeper Namespace
+# This is where all game resources are created
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: game

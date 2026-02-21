@@ -1,0 +1,54 @@
+# PodSweeper Gamemaster ServiceAccount
+# The gamemaster controller runs with this identity
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gamemaster
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: gamemaster
+---
+# ClusterRole for the gamemaster
+# Needs to manage pods, secrets, and watch events in the game namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: podsweeper-gamemaster
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: gamemaster
+rules:
+  # Core pod management for game cells
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Secret management for game state persistence
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Events for debugging and observability
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # Namespace access (for multi-game support)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+---
+# Bind the ClusterRole to the gamemaster ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: podsweeper-gamemaster
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: gamemaster
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: podsweeper-gamemaster
+subjects:
+  - kind: ServiceAccount
+    name: gamemaster
+    namespace: podsweeper-game

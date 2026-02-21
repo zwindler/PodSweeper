@@ -1,0 +1,57 @@
+# PodSweeper Player ServiceAccount
+# Players use this identity to interact with the game
+# Their only ability is to delete pods (click cells)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: player
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: player
+---
+# Role for players - very restricted
+# Can only list and delete pods in the game namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: podsweeper-player
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: player
+rules:
+  # List pods to see the grid
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Delete pods to "click" cells
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  # Port-forward to hint pods
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+  # View pod logs (for hint pods)
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+# Bind the Role to the player ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: podsweeper-player
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: player
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: podsweeper-player
+subjects:
+  - kind: ServiceAccount
+    name: player
+    namespace: podsweeper-game

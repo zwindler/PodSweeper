@@ -1,0 +1,64 @@
+# PodSweeper Gamemaster Deployment
+# The controller that manages game state and pod lifecycle
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gamemaster
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: gamemaster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: podsweeper
+      app.kubernetes.io/component: gamemaster
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: podsweeper
+        app.kubernetes.io/component: gamemaster
+    spec:
+      serviceAccountName: gamemaster
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+        - name: gamemaster
+          image: ghcr.io/zwindler/podsweeper-gamemaster:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --namespace=podsweeper-game
+            - --health-probe-bind-address=:8081
+          ports:
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      terminationGracePeriodSeconds: 10

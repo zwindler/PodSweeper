@@ -1,0 +1,25 @@
+# Kustomization overlay for local development
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# For local development, use locally built images
+images:
+  - name: ghcr.io/zwindler/podsweeper-gamemaster
+    newName: podsweeper-gamemaster
+    newTag: dev
+  - name: ghcr.io/zwindler/podsweeper-hint-agent
+    newName: podsweeper-hint-agent
+    newTag: dev
+
+# Patch the deployment for local development
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
+      name: gamemaster
