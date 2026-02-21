@@ -27,6 +27,10 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # ConfigMap management for game configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Events for debugging and observability
   - apiGroups: [""]
     resources: ["events"]

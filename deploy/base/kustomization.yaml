@@ -9,6 +9,7 @@ resources:
   - gamemaster-rbac.yaml
   - gamemaster-deployment.yaml
   - player-rbac.yaml
+  - game-config.yaml
 
 labels:
   - pairs:

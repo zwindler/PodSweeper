@@ -1,0 +1,36 @@
+# PodSweeper Game Configuration
+# 
+# This ConfigMap controls the game. Modify the values and the gamemaster
+# will automatically start/restart the game.
+#
+# Fields:
+#   level:  Game difficulty 0-9 (default: 0)
+#   seed:   Random seed for reproducible games (optional)
+#   action: Set to "start" to begin a new game, "end" to stop
+#
+# The gamemaster will update this ConfigMap with status information:
+#   status:     Current game state (pending, playing, won, lost, error)
+#   message:    Human-readable status message
+#   gridSize:   Grid dimensions (e.g., "5x5")
+#   mines:      Number of mines
+#   progress:   Completion percentage
+#   lastUpdate: Timestamp of last update
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: podsweeper-config
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: config
+data:
+  # Set level 0-9 (default: 0)
+  # Levels 0-3: 5x5 grid, 4 mines (Tutorial)
+  # Levels 4-6: 10x10 grid, 15 mines (Intermediate)
+  # Levels 7-9: 20x20 grid, 60 mines (Expert)
+  level: "0"
+  
+  # Set action to "start" to begin a game
+  # After processing, this field is cleared automatically
+  action: "start"

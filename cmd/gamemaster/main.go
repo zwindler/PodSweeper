@@ -3,10 +3,12 @@
 // - Managing the game grid (spawning/deleting pods)
 // - Tracking game state (mines, revealed cells, level)
 // - Handling game logic (BFS propagation, victory/defeat detection)
+// - Watching ConfigMap for game configuration
 // - Running the admission webhook for advanced levels
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 
@@ -92,6 +94,24 @@ func main() {
 	if err := gameController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GameController")
 		os.Exit(1)
+	}
+
+	// Create and register the config controller (watches ConfigMap for game configuration)
+	configController := controller.NewConfigController(mgr.GetClient(), controller.ConfigControllerConfig{
+		Namespace: namespace,
+		Store:     store,
+	})
+
+	if err := configController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ConfigController")
+		os.Exit(1)
+	}
+
+	// Ensure the config ConfigMap exists
+	ctx := context.Background()
+	if err := configController.EnsureConfigMap(ctx); err != nil {
+		setupLog.Error(err, "failed to ensure config ConfigMap exists")
+		// Don't exit - the ConfigMap might be created later
 	}
 
 	// TODO: Set up admission webhook (for levels 5+)
