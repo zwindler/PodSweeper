@@ -234,7 +234,7 @@ func TestGridSpawner_CleanupGrid(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod-0-0",
 				Namespace: testNamespace,
-				Labels:    map[string]string{LabelApp: "podsweeper"},
+				Labels:    map[string]string{LabelApp: "podsweeper", LabelComponent: "cell"},
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{Name: "c", Image: "i"}},
@@ -244,7 +244,7 @@ func TestGridSpawner_CleanupGrid(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod-1-1",
 				Namespace: testNamespace,
-				Labels:    map[string]string{LabelApp: "podsweeper"},
+				Labels:    map[string]string{LabelApp: "podsweeper", LabelComponent: "cell"},
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{Name: "c", Image: "i"}},
@@ -260,11 +260,22 @@ func TestGridSpawner_CleanupGrid(t *testing.T) {
 				Containers: []corev1.Container{{Name: "c", Image: "i"}},
 			},
 		},
+		{
+			// Gamemaster pod - should NOT be deleted
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "gamemaster-abc123",
+				Namespace: testNamespace,
+				Labels:    map[string]string{LabelApp: "podsweeper", LabelComponent: "gamemaster"},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "c", Image: "i"}},
+			},
+		},
 	}
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(&existingPods[0], &existingPods[1], &existingPods[2]).
+		WithObjects(&existingPods[0], &existingPods[1], &existingPods[2], &existingPods[3]).
 		Build()
 
 	spawner := NewGridSpawner(fakeClient, GridSpawnerConfig{
@@ -292,6 +303,12 @@ func TestGridSpawner_CleanupGrid(t *testing.T) {
 	err = fakeClient.Get(ctx, types.NamespacedName{Name: "other-app", Namespace: testNamespace}, &pod)
 	if err != nil {
 		t.Error("expected other-app pod to still exist")
+	}
+
+	// Gamemaster pod should NOT be deleted (infrastructure component)
+	err = fakeClient.Get(ctx, types.NamespacedName{Name: "gamemaster-abc123", Namespace: testNamespace}, &pod)
+	if err != nil {
+		t.Error("expected gamemaster pod to still exist - cleanup should not delete infrastructure pods")
 	}
 }
 

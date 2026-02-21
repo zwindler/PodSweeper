@@ -213,7 +213,17 @@ func (s *GridSpawner) buildCellPod(coord game.Coordinate, gameID string) *corev1
 	}
 }
 
+// gameComponents lists components that are part of the game and should be cleaned up.
+// This excludes infrastructure components like gamemaster.
+var gameComponents = map[string]bool{
+	"cell":      true,
+	"hint":      true,
+	"explosion": true,
+	"victory":   true,
+}
+
 // CleanupGrid removes all game pods from the namespace.
+// It only removes game-related pods (cells, hints, explosion, victory), not infrastructure pods.
 func (s *GridSpawner) CleanupGrid(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 
@@ -233,6 +243,14 @@ func (s *GridSpawner) CleanupGrid(ctx context.Context) error {
 
 	for i := range podList.Items {
 		pod := &podList.Items[i]
+
+		// Only delete game-related pods, not infrastructure (e.g., gamemaster)
+		component := pod.Labels[LabelComponent]
+		if !gameComponents[component] {
+			logger.V(1).Info("skipping non-game pod", "name", pod.Name, "component", component)
+			continue
+		}
+
 		if err := s.client.Delete(ctx, pod); err != nil {
 			if !errors.IsNotFound(err) {
 				logger.Error(err, "failed to delete pod", "name", pod.Name)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -15,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/zwindler/podsweeper/pkg/game"
+	"github.com/zwindler/podsweeper/pkg/grid"
+	"github.com/zwindler/podsweeper/pkg/spawner"
 )
 
 // PodNameRegex matches pod names in the format "pod-X-Y" where X and Y are integers.
@@ -58,6 +61,19 @@ func (r *GameController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Only process pods in our namespace
 	if req.Namespace != r.Namespace {
+		return ctrl.Result{}, nil
+	}
+
+	// Check if this is an explosion or victory pod being deleted (triggers game restart)
+	if req.Name == "explosion" || req.Name == "victory" {
+		pod := &corev1.Pod{}
+		err := r.Get(ctx, req.NamespacedName, pod)
+		if errors.IsNotFound(err) {
+			// Explosion/victory pod was deleted - restart the game
+			logger.Info("end-game pod deleted, restarting game", "name", req.Name)
+			return r.handleGameRestart(ctx)
+		}
+		// Pod still exists or error - ignore
 		return ctrl.Result{}, nil
 	}
 
@@ -141,6 +157,69 @@ func (r *GameController) handlePodDeletion(ctx context.Context, coords game.Coor
 	// Empty cell (no adjacent mines) - trigger BFS propagation
 	logger.Info("empty cell, triggering propagation", "coords", coords)
 	return r.Handlers.HandleEmptyCell(ctx, state, coords)
+}
+
+// handleGameRestart restarts the game when explosion/victory pod is deleted.
+// It keeps the same level and generates a new random game.
+func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	// Load current game state to get the level
+	state, err := r.Store.Load(ctx)
+	if err != nil {
+		logger.Error(err, "failed to load game state for restart")
+		return ctrl.Result{}, err
+	}
+
+	// Default to level 0 if no state found
+	level := 0
+	if state != nil {
+		level = state.Level
+	}
+
+	logger.Info("restarting game", "level", level)
+
+	// Create spawner to clean up existing pods
+	gridSpawner := spawner.NewGridSpawner(r.Client, spawner.GridSpawnerConfig{
+		Namespace: r.Namespace,
+	})
+
+	// Cleanup all existing game pods (cells, hints, explosion, victory)
+	if err := gridSpawner.CleanupGrid(ctx); err != nil {
+		logger.Error(err, "failed to cleanup existing game pods")
+		// Continue anyway - we'll try to create the new game
+	}
+
+	// Generate new game state with a new random seed
+	seed := time.Now().UnixNano()
+	newState, err := grid.GenerateForLevel(level, seed)
+	if err != nil {
+		logger.Error(err, "failed to generate new game", "level", level)
+		return ctrl.Result{}, err
+	}
+
+	// Save the new game state
+	if err := r.Store.Save(ctx, newState); err != nil {
+		logger.Error(err, "failed to save new game state")
+		return ctrl.Result{}, err
+	}
+
+	logger.Info("new game state saved", "seed", seed, "size", newState.Size, "mines", newState.MineCount)
+
+	// Spawn the new grid pods
+	spawnResult, err := gridSpawner.SpawnGrid(ctx, newState)
+	if err != nil {
+		logger.Error(err, "failed to spawn new grid")
+		return ctrl.Result{}, err
+	}
+
+	logger.Info("game restarted successfully",
+		"level", level,
+		"podsCreated", spawnResult.CreatedPods,
+		"duration", spawnResult.Duration,
+	)
+
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
