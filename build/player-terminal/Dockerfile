@@ -8,9 +8,9 @@
 #   FROM ghcr.io/zwindler/podsweeper-player-terminal:latest
 #   RUN apk add --no-cache your-favorite-tools
 
-FROM alpine:3.21
+FROM alpine:3.23
 
-ARG KUBECTL_VERSION=1.32.0
+ARG KUBECTL_VERSION=1.35.1
 ARG TARGETARCH=amd64
 
 # Install essential tools
