@@ -196,6 +196,11 @@ Start with:
 
 ## Recent Fixes
 
+### v0.1.3 (2026-02-22)
+- Updated golangci-lint-action from v6 to v7 (required for golangci-lint v2.x)
+- Fixed all golangci-lint issues (errcheck, staticcheck, unused)
+- Added pre-commit hook for lint enforcement (`make install-hooks`)
+
 ### v0.1.2 (2026-02-22)
 - Fixed RBAC escalation: gamemaster now has all permissions it grants to players
 - Fixed cache timing: `EnsureConfigMap` now runs after manager starts

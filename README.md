@@ -92,7 +92,7 @@ explosion  1/1     Running   1s    # <- 💥 BOOM!
 
 ```bash
 # Deploy directly from GitHub (no clone needed!)
-kubectl apply -k https://github.com/zwindler/podsweeper//deploy/base?ref=v0.1.2
+kubectl apply -k https://github.com/zwindler/podsweeper//deploy/base?ref=v0.1.3
 
 # Wait for the gamemaster to be ready
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=podsweeper \
