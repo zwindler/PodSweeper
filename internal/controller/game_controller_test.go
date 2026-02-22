@@ -915,3 +915,179 @@ func TestGameHandlers_DeletePodNotFound(t *testing.T) {
 		t.Fatalf("deletePod should not error for non-existent pod: %v", err)
 	}
 }
+
+// --- Level Transition Tests ---
+
+func TestGameController_HandleGameRestart_LevelUp(t *testing.T) {
+	// This test verifies that when the player wins, the level is incremented
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	// Create a fake client with the necessary namespace
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: testNamespace},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		Build()
+
+	store := game.NewMemoryStore()
+
+	// Create a game state at level 0 that was won
+	state := game.NewGameState(5, 12345)
+	state.Level = 0
+	state.Status = game.StatusWon
+	if err := store.Save(ctx, state); err != nil {
+		t.Fatalf("failed to save initial state: %v", err)
+	}
+
+	// Create the controller
+	gc := NewGameController(fakeClient, GameControllerConfig{
+		Namespace: testNamespace,
+		Store:     store,
+	})
+
+	// Simulate victory pod deletion (triggers handleGameRestart)
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "victory",
+			Namespace: testNamespace,
+		},
+	}
+
+	// The victory pod doesn't exist, so Reconcile will call handleGameRestart
+	_, err := gc.Reconcile(ctx, req)
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	// Load the new game state
+	newState, err := store.Load(ctx)
+	if err != nil {
+		t.Fatalf("failed to load new state: %v", err)
+	}
+
+	// Verify level was incremented
+	if newState.Level != 1 {
+		t.Errorf("expected level 1 after winning level 0, got %d", newState.Level)
+	}
+
+	// Verify game is in playing status
+	if newState.Status != game.StatusPlaying {
+		t.Errorf("expected status 'playing', got %q", newState.Status)
+	}
+}
+
+func TestGameController_HandleGameRestart_NoLevelUpOnLoss(t *testing.T) {
+	// This test verifies that when the player loses, the level stays the same
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: testNamespace},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		Build()
+
+	store := game.NewMemoryStore()
+
+	// Create a game state at level 2 that was lost
+	state := game.NewGameState(5, 12345)
+	state.Level = 2
+	state.Status = game.StatusLost
+	if err := store.Save(ctx, state); err != nil {
+		t.Fatalf("failed to save initial state: %v", err)
+	}
+
+	gc := NewGameController(fakeClient, GameControllerConfig{
+		Namespace: testNamespace,
+		Store:     store,
+	})
+
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "explosion",
+			Namespace: testNamespace,
+		},
+	}
+
+	_, err := gc.Reconcile(ctx, req)
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	newState, err := store.Load(ctx)
+	if err != nil {
+		t.Fatalf("failed to load new state: %v", err)
+	}
+
+	// Verify level stayed the same
+	if newState.Level != 2 {
+		t.Errorf("expected level 2 after losing, got %d", newState.Level)
+	}
+
+	if newState.Status != game.StatusPlaying {
+		t.Errorf("expected status 'playing', got %q", newState.Status)
+	}
+}
+
+func TestGameController_HandleGameRestart_MaxLevel(t *testing.T) {
+	// This test verifies that winning at max level doesn't overflow
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: testNamespace},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ns).
+		Build()
+
+	store := game.NewMemoryStore()
+
+	// Create a game state at max level (9) that was won
+	state := game.NewGameState(20, 12345) // Tier 3 size for level 9
+	state.Level = 9
+	state.Status = game.StatusWon
+	if err := store.Save(ctx, state); err != nil {
+		t.Fatalf("failed to save initial state: %v", err)
+	}
+
+	gc := NewGameController(fakeClient, GameControllerConfig{
+		Namespace: testNamespace,
+		Store:     store,
+	})
+
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "victory",
+			Namespace: testNamespace,
+		},
+	}
+
+	_, err := gc.Reconcile(ctx, req)
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	newState, err := store.Load(ctx)
+	if err != nil {
+		t.Fatalf("failed to load new state: %v", err)
+	}
+
+	// Verify level stayed at max (9) - no overflow
+	if newState.Level != 9 {
+		t.Errorf("expected level 9 (max) after winning at max level, got %d", newState.Level)
+	}
+
+	if newState.Status != game.StatusPlaying {
+		t.Errorf("expected status 'playing', got %q", newState.Status)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +24,9 @@ const (
 
 	// MapDataKey is the key used to store the visual grid in ConfigMap/Secret.
 	MapDataKey = "grid"
+
+	// PlayerRoleName is the name of the player Role that gets updated per level.
+	PlayerRoleName = "podsweeper-player"
 )
 
 // Manager handles level-specific resource creation and cleanup.
@@ -46,6 +50,11 @@ func (m *Manager) ApplyLevel(ctx context.Context, state *game.GameState) error {
 	if err := m.Cleanup(ctx); err != nil {
 		// Log but don't fail - cleanup errors are non-fatal
 		_ = err
+	}
+
+	// Apply RBAC rules for this level
+	if err := m.applyRBAC(ctx, state.Level); err != nil {
+		return fmt.Errorf("failed to apply RBAC for level %d: %w", state.Level, err)
 	}
 
 	switch state.Level {
@@ -176,4 +185,129 @@ func (m *Manager) applyLevel1(ctx context.Context, state *game.GameState) error 
 	}
 
 	return nil
+}
+
+// applyRBAC updates the player Role with permissions appropriate for the given level.
+// Permissions are progressively restricted as levels increase.
+func (m *Manager) applyRBAC(ctx context.Context, level int) error {
+	rules := m.getRBACRulesForLevel(level)
+
+	// Get the existing Role
+	role := &rbacv1.Role{}
+	if err := m.Get(ctx, client.ObjectKey{Namespace: m.Namespace, Name: PlayerRoleName}, role); err != nil {
+		if errors.IsNotFound(err) {
+			// Role doesn't exist yet - this is OK during initial setup
+			// The Role is created by kustomize, not by the controller
+			return nil
+		}
+		return fmt.Errorf("failed to get player Role: %w", err)
+	}
+
+	// Update the rules
+	role.Rules = rules
+
+	if err := m.Update(ctx, role); err != nil {
+		return fmt.Errorf("failed to update player Role: %w", err)
+	}
+
+	return nil
+}
+
+// getRBACRulesForLevel returns the RBAC rules for a given level.
+// Each level progressively removes permissions to close cheat paths.
+func (m *Manager) getRBACRulesForLevel(level int) []rbacv1.PolicyRule {
+	// Base rules that all levels have
+	baseRules := []rbacv1.PolicyRule{
+		// Core gameplay: see and delete pods
+		{
+			APIGroups: []string{""},
+			Resources: []string{"pods"},
+			Verbs:     []string{"get", "list", "watch", "delete"},
+		},
+		// Port-forward to hint pods
+		{
+			APIGroups: []string{""},
+			Resources: []string{"pods/portforward"},
+			Verbs:     []string{"create"},
+		},
+		// View pod logs
+		{
+			APIGroups: []string{""},
+			Resources: []string{"pods/log"},
+			Verbs:     []string{"get"},
+		},
+		// View events (always available, required for Level 9)
+		{
+			APIGroups: []string{""},
+			Resources: []string{"events"},
+			Verbs:     []string{"get", "list", "watch"},
+		},
+	}
+
+	switch {
+	case level <= 0:
+		// Level 0: The Intern - full access
+		// Can read ConfigMaps, Secrets, exec into pods
+		return append(baseRules,
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"create"},
+			},
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"get", "list"},
+			},
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list"},
+			},
+		)
+
+	case level == 1:
+		// Level 1: The Junior - remove ConfigMap access
+		// Map is in a Secret (Base64 encoded)
+		return append(baseRules,
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"create"},
+			},
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list"},
+			},
+		)
+
+	case level == 2:
+		// Level 2: The Infiltrator - remove Secret access
+		// Map is in pod environment variables
+		return append(baseRules,
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"create"},
+			},
+		)
+
+	case level == 3:
+		// Level 3: The Heart of the Machine - exec only into player pod
+		// Map is inside Gamemaster pod only
+		// Player can exec, but needs to figure out which pod has the data
+		return append(baseRules,
+			rbacv1.PolicyRule{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"create"},
+			},
+		)
+
+	default:
+		// Level 4+: Amnesia / advanced levels - minimal permissions
+		// No cheat path available - must play legitimately
+		return baseRules
+	}
 }

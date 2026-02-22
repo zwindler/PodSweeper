@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,6 +17,7 @@ import (
 func newFakeClient(objs ...runtime.Object) client.Client {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
+	_ = rbacv1.AddToScheme(scheme)
 
 	return fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -232,5 +234,252 @@ func TestApplyLevelUpdatesExisting(t *testing.T) {
 
 	if cm.Data[MapDataKey] != expected {
 		t.Errorf("Grid not updated:\nExpected:\n%s\n\nGot:\n%s", expected, cm.Data[MapDataKey])
+	}
+}
+
+// --- RBAC Tests ---
+
+func createPlayerRole(namespace string) *rbacv1.Role {
+	return &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      PlayerRoleName,
+			Namespace: namespace,
+		},
+		Rules: []rbacv1.PolicyRule{
+			// Initial placeholder rules
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get"},
+			},
+		},
+	}
+}
+
+func TestApplyRBACLevel0(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+
+	role := createPlayerRole(namespace)
+	fakeClient := newFakeClient(role)
+	mgr := NewManager(fakeClient, namespace)
+
+	state := game.NewGameState(5, 12345)
+	state.Level = 0
+
+	// Apply level 0
+	err := mgr.ApplyLevel(ctx, state)
+	if err != nil {
+		t.Fatalf("ApplyLevel failed: %v", err)
+	}
+
+	// Get the updated role
+	updatedRole := &rbacv1.Role{}
+	err = fakeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: PlayerRoleName}, updatedRole)
+	if err != nil {
+		t.Fatalf("Failed to get role: %v", err)
+	}
+
+	// Level 0 should have ConfigMaps and Secrets access
+	hasConfigMaps := false
+	hasSecrets := false
+	hasExec := false
+
+	for _, rule := range updatedRole.Rules {
+		for _, resource := range rule.Resources {
+			if resource == "configmaps" {
+				hasConfigMaps = true
+			}
+			if resource == "secrets" {
+				hasSecrets = true
+			}
+			if resource == "pods/exec" {
+				hasExec = true
+			}
+		}
+	}
+
+	if !hasConfigMaps {
+		t.Error("Level 0 should have configmaps access")
+	}
+	if !hasSecrets {
+		t.Error("Level 0 should have secrets access")
+	}
+	if !hasExec {
+		t.Error("Level 0 should have pods/exec access")
+	}
+}
+
+func TestApplyRBACLevel1(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+
+	role := createPlayerRole(namespace)
+	fakeClient := newFakeClient(role)
+	mgr := NewManager(fakeClient, namespace)
+
+	state := game.NewGameState(5, 12345)
+	state.Level = 1
+
+	err := mgr.ApplyLevel(ctx, state)
+	if err != nil {
+		t.Fatalf("ApplyLevel failed: %v", err)
+	}
+
+	updatedRole := &rbacv1.Role{}
+	err = fakeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: PlayerRoleName}, updatedRole)
+	if err != nil {
+		t.Fatalf("Failed to get role: %v", err)
+	}
+
+	// Level 1 should have Secrets but NOT ConfigMaps
+	hasConfigMaps := false
+	hasSecrets := false
+
+	for _, rule := range updatedRole.Rules {
+		for _, resource := range rule.Resources {
+			if resource == "configmaps" {
+				hasConfigMaps = true
+			}
+			if resource == "secrets" {
+				hasSecrets = true
+			}
+		}
+	}
+
+	if hasConfigMaps {
+		t.Error("Level 1 should NOT have configmaps access")
+	}
+	if !hasSecrets {
+		t.Error("Level 1 should have secrets access")
+	}
+}
+
+func TestApplyRBACLevel2(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+
+	role := createPlayerRole(namespace)
+	fakeClient := newFakeClient(role)
+	mgr := NewManager(fakeClient, namespace)
+
+	state := game.NewGameState(5, 12345)
+	state.Level = 2
+
+	err := mgr.ApplyLevel(ctx, state)
+	if err != nil {
+		t.Fatalf("ApplyLevel failed: %v", err)
+	}
+
+	updatedRole := &rbacv1.Role{}
+	err = fakeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: PlayerRoleName}, updatedRole)
+	if err != nil {
+		t.Fatalf("Failed to get role: %v", err)
+	}
+
+	// Level 2 should have exec but NOT ConfigMaps or Secrets
+	hasConfigMaps := false
+	hasSecrets := false
+	hasExec := false
+
+	for _, rule := range updatedRole.Rules {
+		for _, resource := range rule.Resources {
+			if resource == "configmaps" {
+				hasConfigMaps = true
+			}
+			if resource == "secrets" {
+				hasSecrets = true
+			}
+			if resource == "pods/exec" {
+				hasExec = true
+			}
+		}
+	}
+
+	if hasConfigMaps {
+		t.Error("Level 2 should NOT have configmaps access")
+	}
+	if hasSecrets {
+		t.Error("Level 2 should NOT have secrets access")
+	}
+	if !hasExec {
+		t.Error("Level 2 should have pods/exec access")
+	}
+}
+
+func TestApplyRBACLevel4Plus(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+
+	role := createPlayerRole(namespace)
+	fakeClient := newFakeClient(role)
+	mgr := NewManager(fakeClient, namespace)
+
+	state := game.NewGameState(5, 12345)
+	state.Level = 4
+
+	err := mgr.ApplyLevel(ctx, state)
+	if err != nil {
+		t.Fatalf("ApplyLevel failed: %v", err)
+	}
+
+	updatedRole := &rbacv1.Role{}
+	err = fakeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: PlayerRoleName}, updatedRole)
+	if err != nil {
+		t.Fatalf("Failed to get role: %v", err)
+	}
+
+	// Level 4+ should have minimal permissions - no ConfigMaps, Secrets, or exec
+	hasConfigMaps := false
+	hasSecrets := false
+	hasExec := false
+	hasPods := false
+
+	for _, rule := range updatedRole.Rules {
+		for _, resource := range rule.Resources {
+			if resource == "configmaps" {
+				hasConfigMaps = true
+			}
+			if resource == "secrets" {
+				hasSecrets = true
+			}
+			if resource == "pods/exec" {
+				hasExec = true
+			}
+			if resource == "pods" {
+				hasPods = true
+			}
+		}
+	}
+
+	if hasConfigMaps {
+		t.Error("Level 4+ should NOT have configmaps access")
+	}
+	if hasSecrets {
+		t.Error("Level 4+ should NOT have secrets access")
+	}
+	if hasExec {
+		t.Error("Level 4+ should NOT have pods/exec access")
+	}
+	if !hasPods {
+		t.Error("Level 4+ should still have pods access for gameplay")
+	}
+}
+
+func TestApplyRBACNoRole(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+
+	// No role exists - should not error
+	fakeClient := newFakeClient()
+	mgr := NewManager(fakeClient, namespace)
+
+	state := game.NewGameState(5, 12345)
+	state.Level = 0
+
+	// Should not error when role doesn't exist
+	err := mgr.ApplyLevel(ctx, state)
+	if err != nil {
+		t.Fatalf("ApplyLevel should not fail when role doesn't exist: %v", err)
 	}
 }

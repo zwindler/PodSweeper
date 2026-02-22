@@ -17,6 +17,7 @@ import (
 
 	"github.com/zwindler/podsweeper/pkg/game"
 	"github.com/zwindler/podsweeper/pkg/grid"
+	"github.com/zwindler/podsweeper/pkg/level"
 	"github.com/zwindler/podsweeper/pkg/spawner"
 )
 
@@ -160,11 +161,11 @@ func (r *GameController) handlePodDeletion(ctx context.Context, coords game.Coor
 }
 
 // handleGameRestart restarts the game when explosion/victory pod is deleted.
-// It keeps the same level and generates a new random game.
+// If the player won, the level is incremented. If they lost, the level stays the same.
 func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// Load current game state to get the level
+	// Load current game state to get the level and status
 	state, err := r.Store.Load(ctx)
 	if err != nil {
 		logger.Error(err, "failed to load game state for restart")
@@ -172,12 +173,22 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 	}
 
 	// Default to level 0 if no state found
-	level := 0
+	nextLevel := 0
 	if state != nil {
-		level = state.Level
+		nextLevel = state.Level
+
+		// If the player won, advance to the next level
+		if state.Status == game.StatusWon {
+			if nextLevel < grid.MaxLevel {
+				nextLevel++
+				logger.Info("level up!", "previousLevel", state.Level, "newLevel", nextLevel)
+			} else {
+				logger.Info("player completed all levels!", "level", nextLevel)
+			}
+		}
 	}
 
-	logger.Info("restarting game", "level", level)
+	logger.Info("restarting game", "level", nextLevel)
 
 	// Create spawner to clean up existing pods
 	gridSpawner := spawner.NewGridSpawner(r.Client, spawner.GridSpawnerConfig{
@@ -186,9 +197,9 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 
 	// Generate new game state with a new random seed
 	seed := time.Now().UnixNano()
-	newState, err := grid.GenerateForLevel(level, seed)
+	newState, err := grid.GenerateForLevel(nextLevel, seed)
 	if err != nil {
-		logger.Error(err, "failed to generate new game", "level", level)
+		logger.Error(err, "failed to generate new game", "level", nextLevel)
 		return ctrl.Result{}, err
 	}
 
@@ -225,8 +236,15 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 		return ctrl.Result{}, err
 	}
 
+	// Apply level-specific resources (map ConfigMap/Secret, etc.)
+	levelMgr := level.NewManager(r.Client, r.Namespace)
+	if err := levelMgr.ApplyLevel(ctx, newState); err != nil {
+		logger.Error(err, "failed to apply level resources", "level", nextLevel)
+		// Non-fatal - game can still be played, just without the cheat path
+	}
+
 	logger.Info("game restarted successfully",
-		"level", level,
+		"level", nextLevel,
 		"podsCreated", spawnResult.CreatedPods,
 		"duration", spawnResult.Duration,
 	)
