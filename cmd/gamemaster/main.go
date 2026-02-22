@@ -18,6 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/zwindler/podsweeper/internal/controller"
 	"github.com/zwindler/podsweeper/pkg/game"
@@ -107,11 +108,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Ensure the config ConfigMap exists
-	ctx := context.Background()
-	if err := configController.EnsureConfigMap(ctx); err != nil {
-		setupLog.Error(err, "failed to ensure config ConfigMap exists")
-		// Don't exit - the ConfigMap might be created later
+	// Ensure the config ConfigMap exists after the cache is started
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		if err := configController.EnsureConfigMap(ctx); err != nil {
+			setupLog.Error(err, "failed to ensure config ConfigMap exists")
+			// Don't return error - the ConfigMap might be created later
+		}
+		return nil
+	})); err != nil {
+		setupLog.Error(err, "unable to add config ensurer runnable")
+		os.Exit(1)
 	}
 
 	// TODO: Set up admission webhook (for levels 5+)
