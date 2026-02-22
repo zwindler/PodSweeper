@@ -91,26 +91,30 @@ explosion  1/1     Running   1s    # <- 💥 BOOM!
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/zwindler/podsweeper.git
-cd podsweeper
-
-# Deploy to your cluster
-kubectl apply -k deploy/base/
+# Deploy directly from GitHub (no clone needed!)
+kubectl apply -k https://github.com/zwindler/podsweeper//deploy/base?ref=v0.1.0
 
 # Wait for the gamemaster to be ready
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=podsweeper \
   -n podsweeper-game --timeout=60s
 ```
 
+Or if you prefer to clone:
+```bash
+git clone https://github.com/zwindler/podsweeper.git
+cd podsweeper
+kubectl apply -k deploy/base/
+```
+
 ### Play the Game
 
 ```bash
 # Start a new game
-make start-game
+kubectl patch configmap podsweeper-config -n podsweeper-game \
+  --type merge -p '{"data":{"level":"0","action":"start"}}'
 
-# Join the player terminal (recommended)
-make play
+# Join the player terminal
+kubectl exec -it player -n podsweeper-game -- bash
 ```
 
 Inside the player terminal:
@@ -125,7 +129,8 @@ Or play directly with kubectl:
 ```bash
 kubectl get pods -n podsweeper-game                    # See the grid
 kubectl delete pod pod-2-2 -n podsweeper-game          # Click a cell
-kubectl logs hint-2-2 -n podsweeper-game               # Read hint
+kubectl port-forward hint-2-2 8080:8080 -n podsweeper-game &
+curl localhost:8080                                    # Read hint value
 kubectl logs explosion -n podsweeper-game              # See defeat message
 kubectl logs victory -n podsweeper-game                # See victory message
 ```

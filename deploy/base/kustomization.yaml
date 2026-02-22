@@ -18,15 +18,17 @@ labels:
       app.kubernetes.io/managed-by: kustomize
     includeSelectors: false
 
+# Images use :latest by default, which points to the most recent release.
+# For local development, use the overlays/local overlay instead.
 images:
   - name: ghcr.io/zwindler/podsweeper-gamemaster
-    newTag: dev
+    newTag: latest
   - name: ghcr.io/zwindler/podsweeper-hint-agent
-    newTag: dev
+    newTag: latest
   - name: ghcr.io/zwindler/podsweeper-player-terminal
-    newTag: dev
+    newTag: latest
 
-# Patch to use :dev tag for hint-agent env var (kustomize images only transforms container images)
+# Patch to set hint-agent image env var (kustomize images only transforms container images)
 patches:
   - target:
       kind: Deployment
@@ -34,4 +36,4 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/env/0/value
-        value: "ghcr.io/zwindler/podsweeper-hint-agent:dev"
+        value: "ghcr.io/zwindler/podsweeper-hint-agent:latest"

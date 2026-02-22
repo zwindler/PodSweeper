@@ -1,17 +1,21 @@
 # Kustomization overlay for local development
+# Use this when building images locally with: make docker-build
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
   - ../../base
 
-# For local development, use locally built images
+# For local development, use locally built images with :dev tag
 images:
   - name: ghcr.io/zwindler/podsweeper-gamemaster
-    newName: podsweeper-gamemaster
+    newName: ghcr.io/zwindler/podsweeper-gamemaster
     newTag: dev
   - name: ghcr.io/zwindler/podsweeper-hint-agent
-    newName: podsweeper-hint-agent
+    newName: ghcr.io/zwindler/podsweeper-hint-agent
+    newTag: dev
+  - name: ghcr.io/zwindler/podsweeper-player-terminal
+    newName: ghcr.io/zwindler/podsweeper-player-terminal
     newTag: dev
 
 # Patch the deployment for local development
@@ -20,6 +24,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: "ghcr.io/zwindler/podsweeper-hint-agent:dev"
     target:
       kind: Deployment
       name: gamemaster

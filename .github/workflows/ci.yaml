@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build gamemaster
+        run: go build -v ./cmd/gamemaster
+
+      - name: Build hint-agent
+        run: go build -v ./cmd/hint-agent
+
+  docker-build:
+    name: Docker Build (dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build gamemaster image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/gamemaster/Dockerfile
+          push: false
+          tags: ghcr.io/zwindler/podsweeper-gamemaster:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build hint-agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: build/hint-agent/Dockerfile
+          push: false
+          tags: ghcr.io/zwindler/podsweeper-hint-agent:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build player-terminal image
+        uses: docker/build-push-action@v6
+        with:
+          context: build/player-terminal
+          file: build/player-terminal/Dockerfile
+          push: false
+          tags: ghcr.io/zwindler/podsweeper-player-terminal:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
