@@ -47,22 +47,22 @@ This document outlines the recommended order for building PodSweeper incremental
 
 ---
 
-## Phase 2: Level Progression (Levels 0-4) - NEXT
+## Phase 2: Level Progression (Levels 0-4) - COMPLETE
 
 **Goal:** Implement CTF-style "cheat" paths for early levels. No webhook required.
 
 ### Level Infrastructure
-- [ ] Level state management
+- [x] Level state management
   - Track current level in game state (already have `Level` field)
   - Persist level progress across restarts
-- [ ] Level transition on victory
+- [x] Level transition on victory
   - Increment level after winning
   - Apply level-specific resources on transition
-- [ ] Level selection via ConfigMap
+- [x] Level selection via ConfigMap
   - Allow starting at specific level for testing
 
 ### Level 0: The Intern (Current Default)
-- [ ] Create `map` ConfigMap with mine positions as visual grid:
+- [x] Create `map` ConfigMap with mine positions as visual grid:
   ```
   . . X X .
   . . . . X
@@ -70,28 +70,28 @@ This document outlines the recommended order for building PodSweeper incremental
   . . . . .
   . X . . .
   ```
-- [ ] Player can `kubectl get cm map -o yaml` to see mines
-- [ ] No RBAC restrictions
+- [x] Player can `kubectl get cm map -o yaml` to see mines
+- [x] No RBAC restrictions
 
 ### Level 1: The Junior
-- [ ] Store map in `map` Secret (Base64 encoded, same visual format)
-- [ ] Restrict player RBAC: remove `get configmaps`
-- [ ] Player must decode Base64 to read map
+- [x] Store map in `map` Secret (Base64 encoded, same visual format)
+- [x] Restrict player RBAC: remove `get configmaps`
+- [x] Player must decode Base64 to read map
 
 ### Level 2: The Infiltrator
-- [ ] Inject map data into game pod environment variables
-- [ ] Restrict player RBAC: remove `get secrets`
-- [ ] Player must `kubectl exec` into a pod to read env
+- [x] Inject map data into game pod environment variables
+- [x] Restrict player RBAC: remove `get secrets`
+- [x] Player must `kubectl exec` into a pod to read env
 
 ### Level 3: The Heart of the Machine
-- [ ] Write map to file inside Gamemaster pod (`/tmp/map.txt`)
-- [ ] Remove env vars from game pods
-- [ ] Player must exec into Gamemaster to read file
+- [x] Write map to file inside Gamemaster pod (`/tmp/map.txt`)
+- [x] Remove env vars from game pods
+- [x] Player must exec into Gamemaster to read file
 
 ### Level 4: Amnesia
-- [ ] Remove all static map leaks (no CM, no Secret readable, no env, no files)
-- [ ] Map only exists in encrypted game state Secret
-- [ ] Forces "legitimate" gameplay - no cheating possible
+- [x] Remove all static map leaks (no CM, no Secret readable, no env, no files)
+- [x] Map only exists in encrypted game state Secret
+- [x] Forces "legitimate" gameplay - no cheating possible
 
 ---
 
@@ -179,14 +179,12 @@ This document outlines the recommended order for building PodSweeper incremental
 
 ## What to Work On Next
 
-**Immediate priority: Phase 2 - Level Progression**
+**Immediate priority: Phase 3 - Security Hardening + Webhook**
 
 Start with:
-1. **Level 0 setup** - Create `map` ConfigMap with visual grid on game start
-2. **Level transition** - Increment level on victory, restart with new level config
-3. **Level 1-4 implementations** - Progressive RBAC restrictions
-
-This adds actual gameplay depth and makes the CTF aspect work.
+1. **Admission Webhook Setup** - HTTP server for admission reviews, TLS certificates
+2. **ValidatingWebhookConfiguration** - Hook DELETE operations on game pods
+3. **Level 5-9 implementations** - Advanced security challenges
 
 ---
 

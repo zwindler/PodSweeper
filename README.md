@@ -69,8 +69,7 @@ explosion  1/1     Running   1s    # <- 💥 BOOM!
 | Hint System (BFS) | ✅ Complete |
 | Victory/Defeat Detection | ✅ Complete |
 | Player Terminal | ✅ Complete |
-| Level 0-1 (Cheat Paths) | ✅ Complete |
-| Levels 2-4 (RBAC) | 🚧 In Progress |
+| Level 0-4 (Cheat Paths) | ✅ Complete |
 | Levels 5-9 (Webhook) | 📋 Planned |
 | CI/CD Pipeline | 📋 Planned |
 
