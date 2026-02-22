@@ -55,19 +55,19 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "%s\n", hintValue)
+		_, _ = fmt.Fprintf(w, "%s\n", hintValue)
 	})
 
 	// Health check endpoint for Kubernetes probes
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
+		_, _ = fmt.Fprint(w, "ok")
 	})
 
 	// Readiness check
 	http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
+		_, _ = fmt.Fprint(w, "ok")
 	})
 
 	// Info endpoint with coordinates (JSON)
@@ -79,14 +79,14 @@ func main() {
 			"hint":    hintValue,
 			"version": Version,
 		}
-		json.NewEncoder(w).Encode(info)
+		_ = json.NewEncoder(w).Encode(info)
 	})
 
 	// ASCII art hint (for fun)
 	http.HandleFunc("/ascii", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		ascii := getASCIIHint(hintValue)
-		fmt.Fprint(w, ascii)
+		_, _ = fmt.Fprint(w, ascii)
 	})
 
 	addr := ":" + port

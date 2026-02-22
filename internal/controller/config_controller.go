@@ -62,11 +62,8 @@ type ConfigController struct {
 	Store     game.Store
 	Namespace string
 
-	// lastProcessedGeneration tracks the last processed ConfigMap generation
-	// to avoid reprocessing the same config
-	lastProcessedGeneration int64
-	lastProcessedLevel      int
-	lastProcessedSeed       int64
+	lastProcessedLevel int
+	lastProcessedSeed  int64
 }
 
 // ConfigControllerConfig holds configuration for the ConfigController.

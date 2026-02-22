@@ -61,7 +61,7 @@ func TestMemoryStore_SaveReturnsClone(t *testing.T) {
 	ctx := context.Background()
 
 	original := NewGameState(10, 12345)
-	store.Save(ctx, original)
+	_ = store.Save(ctx, original)
 
 	// Modify original after saving
 	original.Level = 99
@@ -78,7 +78,7 @@ func TestMemoryStore_LoadReturnsClone(t *testing.T) {
 	ctx := context.Background()
 
 	original := NewGameState(10, 12345)
-	store.Save(ctx, original)
+	_ = store.Save(ctx, original)
 
 	// Load and modify
 	loaded1, _ := store.Load(ctx)
@@ -96,7 +96,7 @@ func TestMemoryStore_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	// Save then delete
-	store.Save(ctx, NewGameState(10, 12345))
+	_ = store.Save(ctx, NewGameState(10, 12345))
 	if err := store.Delete(ctx); err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestMemoryStore_Exists(t *testing.T) {
 	}
 
 	// After save, should exist
-	store.Save(ctx, NewGameState(10, 0))
+	_ = store.Save(ctx, NewGameState(10, 0))
 	exists, err = store.Exists(ctx)
 	if err != nil {
 		t.Fatalf("Exists failed: %v", err)
@@ -145,7 +145,7 @@ func TestMemoryStore_Exists(t *testing.T) {
 	}
 
 	// After delete, should not exist
-	store.Delete(ctx)
+	_ = store.Delete(ctx)
 	exists, _ = store.Exists(ctx)
 	if exists {
 		t.Error("should not exist after delete")
@@ -156,7 +156,7 @@ func TestMemoryStore_Reset(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
 
-	store.Save(ctx, NewGameState(10, 0))
+	_ = store.Save(ctx, NewGameState(10, 0))
 	store.Reset()
 
 	exists, _ := store.Exists(ctx)
@@ -179,7 +179,7 @@ func TestMemoryStore_Concurrent(t *testing.T) {
 			defer wg.Done()
 			state := NewGameState(10, int64(level))
 			state.Level = level
-			store.Save(ctx, state)
+			_ = store.Save(ctx, state)
 		}(i)
 	}
 
@@ -188,7 +188,7 @@ func TestMemoryStore_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			store.Load(ctx)
+			_, _ = store.Load(ctx)
 		}()
 	}
 

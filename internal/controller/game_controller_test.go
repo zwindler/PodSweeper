@@ -230,7 +230,7 @@ func TestGameController_ReconcileIgnoresOtherNamespaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter > 0 {
 		t.Error("expected no requeue for pod in different namespace")
 	}
 }
@@ -277,7 +277,7 @@ func TestGameController_ReconcileIgnoresNonGamePods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter > 0 {
 		t.Error("expected no requeue for non-game pod")
 	}
 }
@@ -317,7 +317,7 @@ func TestGameController_ReconcileIgnoresPodWithDeletionTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter > 0 {
 		t.Error("expected no requeue for terminating pod")
 	}
 }
@@ -350,7 +350,7 @@ func TestGameController_ReconcileNoGameState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter > 0 {
 		t.Error("expected no requeue when no game state exists")
 	}
 }
@@ -386,7 +386,7 @@ func TestGameController_ReconcileIgnoresAlreadyRevealed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter > 0 {
 		t.Error("expected no requeue for already revealed cell")
 	}
 }
@@ -420,7 +420,7 @@ func TestGameController_ReconcileIgnoresGameOver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
-	if result.Requeue {
+	if result.RequeueAfter > 0 {
 		t.Error("expected no requeue when game is already over")
 	}
 }
