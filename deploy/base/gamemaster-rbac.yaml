@@ -11,6 +11,7 @@ metadata:
 ---
 # ClusterRole for the gamemaster
 # Needs to manage pods, secrets, and watch events in the game namespace
+# Also needs all permissions it may grant to players (RBAC escalation prevention)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -23,6 +24,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Pod subresources - needed to grant these to players
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/log", "pods/portforward"]
+    verbs: ["get", "create"]
   # Secret management for game state persistence
   - apiGroups: [""]
     resources: ["secrets"]
@@ -31,10 +36,10 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Events for debugging and observability
+  # Events for debugging, observability, and player access
   - apiGroups: [""]
     resources: ["events"]
-    verbs: ["create", "patch"]
+    verbs: ["get", "list", "watch", "create", "patch"]
   # Namespace access (for multi-game support)
   - apiGroups: [""]
     resources: ["namespaces"]
