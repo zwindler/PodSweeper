@@ -170,18 +170,18 @@ PodSweeper transforms your Kubernetes namespace into a minefield:
 
 PodSweeper isn't just a game — it's a **Kubernetes CTF**. Each level hardens the cluster to prevent "cheating":
 
-| Level | Name | Challenge |
-|-------|------|-----------|
-| 0 | The Intern | Map in plaintext ConfigMap |
-| 1 | The Junior | Map in Secret (Base64) |
-| 2 | The Infiltrator | Map in pod environment variables |
-| 3 | The Heart | Map only in Gamemaster pod |
-| 4 | Amnesia | No map leaks — play fair! |
-| 5 | The Firewall | NetworkPolicy blocks debug endpoint |
-| 6 | The Sand Grain | Finalizers make deletion sticky |
-| 7 | Port Hacking | Hints on randomized ports |
-| 8 | Firing Window | 100ms timing window for deletions |
-| 9 | RBAC Blackout | Info only via Kubernetes Events |
+| Level | Name |
+|-------|------|
+| 0 | The Intern |
+| 1 | The Junior |
+| 2 | The Infiltrator |
+| 3 | The Heart |
+| 4 | Amnesia |
+| 5 | The Firewall |
+| 6 | The Sand Grain |
+| 7 | Port Hacking |
+| 8 | Firing Window |
+| 9 | RBAC Blackout |
 
 ---
 
