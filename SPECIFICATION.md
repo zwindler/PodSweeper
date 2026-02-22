@@ -13,6 +13,10 @@ If you are a player, reading this will reveal all the internal mechanics and 100
 ### 1.1 The Grid
 - **Namespace:** `podsweeper-game`
 - **Initial State:** A grid of $N \times N$ pods named `pod-x-y` (e.g., `pod-3-5`).
+- **Grid Size:** Scales with difficulty tier:
+  - **Tier 1 (Levels 0-4):** 5×5 grid with 4 mines
+  - **Tier 2 (Levels 5-7):** 10×10 grid with 15 mines
+  - **Tier 3 (Levels 8-9):** 20×20 grid with 60 mines
 - **The "Click":** A player "clicks" by executing `kubectl delete pod pod-x-y`.
 
 ### 1.2 Deletion Logic (The State Machine)

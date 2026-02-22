@@ -9,12 +9,15 @@ This document contains the full progression logic for PodSweeper. **Reading this
 
 ## 🕹️ Core Gameplay
 
-* **The Grid:** A 10x10 (or larger) matrix of static Pods named `pod-x-y`.
+* **The Grid:** A matrix of static Pods named `pod-x-y`. Grid size scales with difficulty:
+  * **Tier 1 (Levels 0-4):** 5×5 grid with 4 mines - Learning the basics
+  * **Tier 2 (Levels 5-7):** 10×10 grid with 15 mines - Intermediate challenge
+  * **Tier 3 (Levels 8-9):** 20×20 grid with 60 mines - Expert mode
 * **The "Click":** Performed by running `kubectl delete pod pod-x-y`.
 * **The Result:**
     * **Mined Pod:** Triggering a mine results in a "Nuclear Meltdown" (Namespace wipe / Game Over).
     * **Empty Pod:** Triggers a chain reaction (The Gamemaster automatically deletes adjacent empty pods).
-    * **Hint Pod:** The Pod remains or is immediately recreated, exposing a "Hint" (number of adjacent mines) via a local HTTP endpoint.
+    * **Hint Pod:** The deleted pod is replaced by a `hint-x-y` pod exposing the hint value (number of adjacent mines) via a local HTTP endpoint.
 
 ---
 

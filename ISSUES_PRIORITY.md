@@ -62,12 +62,19 @@ This document outlines the recommended order for building PodSweeper incremental
   - Allow starting at specific level for testing
 
 ### Level 0: The Intern (Current Default)
-- [ ] Create `cheat-map` ConfigMap with mine positions in plain text
-- [ ] Player can `kubectl get cm cheat-map -o yaml` to see mines
+- [ ] Create `map` ConfigMap with mine positions as visual grid:
+  ```
+  . . X X .
+  . . . . X
+  . . . . .
+  . . . . .
+  . X . . .
+  ```
+- [ ] Player can `kubectl get cm map -o yaml` to see mines
 - [ ] No RBAC restrictions
 
 ### Level 1: The Junior
-- [ ] Store map in `cheat-map` Secret (Base64 encoded)
+- [ ] Store map in `map` Secret (Base64 encoded, same visual format)
 - [ ] Restrict player RBAC: remove `get configmaps`
 - [ ] Player must decode Base64 to read map
 
@@ -175,7 +182,7 @@ This document outlines the recommended order for building PodSweeper incremental
 **Immediate priority: Phase 2 - Level Progression**
 
 Start with:
-1. **Level 0 setup** - Create `cheat-map` ConfigMap on game start
+1. **Level 0 setup** - Create `map` ConfigMap with visual grid on game start
 2. **Level transition** - Increment level on victory, restart with new level config
 3. **Level 1-4 implementations** - Progressive RBAC restrictions
 
