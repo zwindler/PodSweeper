@@ -17,6 +17,7 @@ ARG TARGETARCH=amd64
 RUN apk add --no-cache \
     curl \
     bash \
+    bash-completion \
     jq \
     ca-certificates \
     && rm -rf /var/cache/apk/*
