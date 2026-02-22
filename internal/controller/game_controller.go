@@ -190,11 +190,6 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 
 	logger.Info("restarting game", "level", nextLevel)
 
-	// Create spawner to clean up existing pods
-	gridSpawner := spawner.NewGridSpawner(r.Client, spawner.GridSpawnerConfig{
-		Namespace: r.Namespace,
-	})
-
 	// Generate new game state with a new random seed
 	seed := time.Now().UnixNano()
 	newState, err := grid.GenerateForLevel(nextLevel, seed)
@@ -213,6 +208,13 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 	}
 
 	logger.Info("new game state saved", "seed", seed, "size", newState.Size, "mines", newState.MineCount)
+
+	// Create spawner with level info (for Level 2 env var injection)
+	gridSpawner := spawner.NewGridSpawner(r.Client, spawner.GridSpawnerConfig{
+		Namespace: r.Namespace,
+		Level:     nextLevel,
+		MapData:   newState.ToVisualGrid(),
+	})
 
 	// Cleanup all existing game pods (cells, hints, explosion, victory)
 	// Now safe - new state is already saved so any cleanup deletions see "playing" status
@@ -236,7 +238,7 @@ func (r *GameController) handleGameRestart(ctx context.Context) (ctrl.Result, er
 		return ctrl.Result{}, err
 	}
 
-	// Apply level-specific resources (map ConfigMap/Secret, etc.)
+	// Apply level-specific resources (map ConfigMap/Secret, RBAC)
 	levelMgr := level.NewManager(r.Client, r.Namespace)
 	if err := levelMgr.ApplyLevel(ctx, newState); err != nil {
 		logger.Error(err, "failed to apply level resources", "level", nextLevel)

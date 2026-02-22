@@ -401,3 +401,89 @@ func TestSpawnResult(t *testing.T) {
 		t.Errorf("len(FailedCoords) = %d, want 2", len(result.FailedCoords))
 	}
 }
+
+func TestGridSpawner_Level2EnvVarInjection(t *testing.T) {
+	ctx := context.Background()
+	scheme := newTestScheme()
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	mapData := `. . X
+. X .
+X . .`
+
+	spawner := NewGridSpawner(fakeClient, GridSpawnerConfig{
+		Namespace: testNamespace,
+		Level:     2,
+		MapData:   mapData,
+	})
+
+	state := game.NewGameState(3, 12345)
+	result, err := spawner.SpawnGrid(ctx, state)
+	if err != nil {
+		t.Fatalf("SpawnGrid returned error: %v", err)
+	}
+
+	if result.CreatedPods != 9 {
+		t.Errorf("CreatedPods = %d, want 9", result.CreatedPods)
+	}
+
+	// Check that pods have the MAP environment variable
+	var pod corev1.Pod
+	err = fakeClient.Get(ctx, types.NamespacedName{Name: "pod-0-0", Namespace: testNamespace}, &pod)
+	if err != nil {
+		t.Fatalf("failed to get pod-0-0: %v", err)
+	}
+
+	// Find the MAP env var
+	var mapEnvFound bool
+	var mapEnvValue string
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == "MAP" {
+			mapEnvFound = true
+			mapEnvValue = env.Value
+			break
+		}
+	}
+
+	if !mapEnvFound {
+		t.Error("expected MAP environment variable in Level 2 pod")
+	}
+
+	if mapEnvValue != mapData {
+		t.Errorf("MAP env value = %q, want %q", mapEnvValue, mapData)
+	}
+}
+
+func TestGridSpawner_Level0NoEnvVar(t *testing.T) {
+	ctx := context.Background()
+	scheme := newTestScheme()
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	mapData := `. . X
+. X .
+X . .`
+
+	// Level 0 should NOT inject env vars
+	spawner := NewGridSpawner(fakeClient, GridSpawnerConfig{
+		Namespace: testNamespace,
+		Level:     0,
+		MapData:   mapData,
+	})
+
+	state := game.NewGameState(3, 12345)
+	_, err := spawner.SpawnGrid(ctx, state)
+	if err != nil {
+		t.Fatalf("SpawnGrid returned error: %v", err)
+	}
+
+	var pod corev1.Pod
+	err = fakeClient.Get(ctx, types.NamespacedName{Name: "pod-0-0", Namespace: testNamespace}, &pod)
+	if err != nil {
+		t.Fatalf("failed to get pod-0-0: %v", err)
+	}
+
+	// Should NOT have any env vars in Level 0
+	if len(pod.Spec.Containers[0].Env) > 0 {
+		t.Error("Level 0 pod should NOT have MAP environment variable")
+	}
+}

@@ -124,17 +124,13 @@ func (m *GameManager) StartGame(ctx context.Context, opts StartGameOptions) (*St
 		"mines", levelConfig.MineCount,
 	)
 
-	// Create spawner for this operation
-	gridSpawner := spawner.NewGridSpawner(m.client, spawner.GridSpawnerConfig{
-		Namespace: m.namespace,
-		CellImage: m.config.CellImage,
-		BatchSize: m.config.SpawnBatchSize,
-	})
-
 	// Cleanup existing game if requested
 	if opts.CleanupExisting {
 		logger.Info("cleaning up existing game")
-		if err := gridSpawner.CleanupGrid(ctx); err != nil {
+		cleanupSpawner := spawner.NewGridSpawner(m.client, spawner.GridSpawnerConfig{
+			Namespace: m.namespace,
+		})
+		if err := cleanupSpawner.CleanupGrid(ctx); err != nil {
 			logger.Error(err, "failed to cleanup existing game, continuing anyway")
 		}
 		// Also delete existing state
@@ -164,6 +160,15 @@ func (m *GameManager) StartGame(ctx context.Context, opts StartGameOptions) (*St
 		return nil, fmt.Errorf("failed to save game state: %w", err)
 	}
 	logger.Info("game state saved")
+
+	// Create spawner with level info (for Level 2 env var injection)
+	gridSpawner := spawner.NewGridSpawner(m.client, spawner.GridSpawnerConfig{
+		Namespace: m.namespace,
+		CellImage: m.config.CellImage,
+		BatchSize: m.config.SpawnBatchSize,
+		Level:     opts.Level,
+		MapData:   gameState.ToVisualGrid(),
+	})
 
 	// Spawn the grid pods
 	spawnResult, err := gridSpawner.SpawnGrid(ctx, gameState)

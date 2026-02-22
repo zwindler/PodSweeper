@@ -5,6 +5,7 @@ package level
 import (
 	"context"
 	"fmt"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -27,6 +28,9 @@ const (
 
 	// PlayerRoleName is the name of the player Role that gets updated per level.
 	PlayerRoleName = "podsweeper-player"
+
+	// MapFilePath is the path where the map file is written for Level 3.
+	MapFilePath = "/tmp/map.txt"
 )
 
 // Manager handles level-specific resource creation and cleanup.
@@ -64,9 +68,15 @@ func (m *Manager) ApplyLevel(ctx context.Context, state *game.GameState) error {
 	case 1:
 		// Level 1: The Junior - mine map in a Secret (Base64)
 		return m.applyLevel1(ctx, state)
-	// Levels 2-9 will be implemented later
+	case 2:
+		// Level 2: The Infiltrator - mine map in pod env vars
+		// Handled by spawner, no additional resources needed here
+		return nil
+	case 3:
+		// Level 3: The Heart of the Machine - mine map in Gamemaster's filesystem
+		return m.applyLevel3(ctx, state)
 	default:
-		// No special resources for this level
+		// Level 4+: No cheat path - must play legitimately
 		return nil
 	}
 }
@@ -93,6 +103,11 @@ func (m *Manager) Cleanup(ctx context.Context) error {
 	}
 	if err := m.Delete(ctx, secret); err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete map Secret: %w", err)
+	}
+
+	// Delete map file if it exists (Level 3)
+	if err := os.Remove(MapFilePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete map file: %w", err)
 	}
 
 	return nil
@@ -182,6 +197,21 @@ func (m *Manager) applyLevel1(ctx context.Context, state *game.GameState) error 
 			return nil
 		}
 		return fmt.Errorf("failed to create map Secret: %w", err)
+	}
+
+	return nil
+}
+
+// applyLevel3 creates resources for Level 3: The Heart of the Machine.
+// The mine map is written to a file inside the Gamemaster pod.
+// Player needs to exec into the Gamemaster pod to read it.
+func (m *Manager) applyLevel3(_ context.Context, state *game.GameState) error {
+	visualGrid := state.ToVisualGrid()
+
+	// Write the map to a file in the Gamemaster's filesystem
+	// The Gamemaster controller runs in the pod, so this writes to /tmp/map.txt
+	if err := os.WriteFile(MapFilePath, []byte(visualGrid), 0644); err != nil {
+		return fmt.Errorf("failed to write map file: %w", err)
 	}
 
 	return nil

@@ -55,6 +55,8 @@ type GridSpawner struct {
 	batchSize     int
 	retryAttempts int
 	retryDelay    time.Duration
+	level         int
+	mapData       string
 }
 
 // GridSpawnerConfig holds configuration for the GridSpawner.
@@ -64,6 +66,10 @@ type GridSpawnerConfig struct {
 	BatchSize     int
 	RetryAttempts int
 	RetryDelay    time.Duration
+	// Level is the current game level (affects pod creation)
+	Level int
+	// MapData is the visual grid string to inject as env var (Level 2+)
+	MapData string
 }
 
 // SpawnResult contains the result of a spawn operation.
@@ -100,6 +106,8 @@ func NewGridSpawner(c client.Client, config GridSpawnerConfig) *GridSpawner {
 		batchSize:     config.BatchSize,
 		retryAttempts: config.RetryAttempts,
 		retryDelay:    config.RetryDelay,
+		level:         config.Level,
+		mapData:       config.MapData,
 	}
 }
 
@@ -188,7 +196,7 @@ func (s *GridSpawner) createPodWithRetry(ctx context.Context, coord game.Coordin
 
 // buildCellPod creates the pod spec for a game cell.
 func (s *GridSpawner) buildCellPod(coord game.Coordinate, gameID string) *corev1.Pod {
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      coord.PodName(),
 			Namespace: s.namespace,
@@ -213,6 +221,19 @@ func (s *GridSpawner) buildCellPod(coord game.Coordinate, gameID string) *corev1
 			},
 		},
 	}
+
+	// Level 2: Inject map data as environment variable
+	// Players need to exec into a pod to read the env var
+	if s.level == 2 && s.mapData != "" {
+		pod.Spec.Containers[0].Env = []corev1.EnvVar{
+			{
+				Name:  "MAP",
+				Value: s.mapData,
+			},
+		}
+	}
+
+	return pod
 }
 
 // gameComponents lists components that are part of the game and should be cleaned up.

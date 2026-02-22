@@ -188,11 +188,6 @@ func (r *ConfigController) parseConfig(cm *corev1.ConfigMap) (level int, seed in
 func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.ConfigMap, lvl int, seed int64) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// Create spawner for cleanup and spawning
-	gridSpawner := spawner.NewGridSpawner(r.Client, spawner.GridSpawnerConfig{
-		Namespace: r.Namespace,
-	})
-
 	// Create level manager for level-specific resources
 	levelMgr := level.NewManager(r.Client, r.Namespace)
 
@@ -219,7 +214,14 @@ func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.Confi
 		return r.updateStatus(ctx, cm, "error", fmt.Sprintf("Failed to save state: %v", err))
 	}
 
-	// Apply level-specific resources (e.g., map ConfigMap for Level 0)
+	// Create spawner with level info (for Level 2 env var injection)
+	gridSpawner := spawner.NewGridSpawner(r.Client, spawner.GridSpawnerConfig{
+		Namespace: r.Namespace,
+		Level:     lvl,
+		MapData:   gameState.ToVisualGrid(),
+	})
+
+	// Apply level-specific resources (e.g., map ConfigMap for Level 0, RBAC updates)
 	if err := levelMgr.ApplyLevel(ctx, gameState); err != nil {
 		logger.Error(err, "failed to apply level resources", "level", lvl)
 		// Continue anyway - level resources are "cheat" paths, not required for gameplay

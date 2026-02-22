@@ -2,6 +2,7 @@ package level
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -481,5 +482,50 @@ func TestApplyRBACNoRole(t *testing.T) {
 	err := mgr.ApplyLevel(ctx, state)
 	if err != nil {
 		t.Fatalf("ApplyLevel should not fail when role doesn't exist: %v", err)
+	}
+}
+
+func TestApplyLevel3MapFile(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+
+	fakeClient := newFakeClient()
+	mgr := NewManager(fakeClient, namespace)
+
+	state := game.NewGameState(3, 12345)
+	state.SetMine(0, 0)
+	state.SetMine(2, 2)
+	state.Level = 3
+
+	// Apply level 3
+	err := mgr.ApplyLevel(ctx, state)
+	if err != nil {
+		t.Fatalf("ApplyLevel failed: %v", err)
+	}
+
+	// Check that the map file was created
+	content, err := os.ReadFile(MapFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read map file: %v", err)
+	}
+
+	expected := `X . .
+. . .
+. . X`
+
+	if string(content) != expected {
+		t.Errorf("Map file content mismatch:\nExpected:\n%s\n\nGot:\n%s", expected, string(content))
+	}
+
+	// Cleanup
+	err = mgr.Cleanup(ctx)
+	if err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+
+	// Verify file was deleted
+	_, err = os.ReadFile(MapFilePath)
+	if err == nil {
+		t.Error("Expected map file to be deleted after cleanup")
 	}
 }
