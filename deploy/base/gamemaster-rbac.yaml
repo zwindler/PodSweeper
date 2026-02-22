@@ -42,7 +42,7 @@ rules:
   # Role management for dynamic RBAC per level
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles"]
-    verbs: ["get", "update", "patch"]
+    verbs: ["get", "list", "watch", "update", "patch"]
 ---
 # Bind the ClusterRole to the gamemaster ServiceAccount
 apiVersion: rbac.authorization.k8s.io/v1
