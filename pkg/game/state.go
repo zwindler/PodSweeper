@@ -4,6 +4,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -297,4 +298,34 @@ func (g *GameState) Stats() map[string]interface{} {
 		"clicks":         g.Clicks,
 		"hintPodsPlaced": len(g.HintCells),
 	}
+}
+
+// ToVisualGrid returns a visual representation of the mine map.
+// Mines are marked with 'X', safe cells with '.'.
+// The grid is oriented so that row 0 is the top (y=0) and column 0 is the left (x=0).
+// Example output for a 5x5 grid:
+//
+//	. . X X .
+//	. . . . X
+//	. . . . .
+//	. . . . .
+//	. X . . .
+func (g *GameState) ToVisualGrid() string {
+	var result strings.Builder
+	for y := 0; y < g.Size; y++ {
+		for x := 0; x < g.Size; x++ {
+			if x > 0 {
+				result.WriteString(" ")
+			}
+			if g.MineMap[x][y] {
+				result.WriteString("X")
+			} else {
+				result.WriteString(".")
+			}
+		}
+		if y < g.Size-1 {
+			result.WriteString("\n")
+		}
+	}
+	return result.String()
 }

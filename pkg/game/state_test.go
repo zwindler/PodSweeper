@@ -496,3 +496,53 @@ func TestTimeFields(t *testing.T) {
 		t.Error("EndedAt should be set when game ends")
 	}
 }
+
+func TestToVisualGrid(t *testing.T) {
+	state := NewGameState(5, 0)
+
+	// Place some mines in a known pattern
+	state.SetMine(2, 0) // Row 0: . . X . .
+	state.SetMine(3, 0)
+	state.SetMine(4, 1) // Row 1: . . . . X
+	state.SetMine(1, 4) // Row 4: . X . . .
+
+	expected := `. . X X .
+. . . . X
+. . . . .
+. . . . .
+. X . . .`
+
+	result := state.ToVisualGrid()
+	if result != expected {
+		t.Errorf("ToVisualGrid mismatch:\nExpected:\n%s\n\nGot:\n%s", expected, result)
+	}
+}
+
+func TestToVisualGridEmpty(t *testing.T) {
+	state := NewGameState(3, 0)
+
+	expected := `. . .
+. . .
+. . .`
+
+	result := state.ToVisualGrid()
+	if result != expected {
+		t.Errorf("ToVisualGrid empty grid mismatch:\nExpected:\n%s\n\nGot:\n%s", expected, result)
+	}
+}
+
+func TestToVisualGridAllMines(t *testing.T) {
+	state := NewGameState(2, 0)
+	state.SetMine(0, 0)
+	state.SetMine(1, 0)
+	state.SetMine(0, 1)
+	state.SetMine(1, 1)
+
+	expected := `X X
+X X`
+
+	result := state.ToVisualGrid()
+	if result != expected {
+		t.Errorf("ToVisualGrid all mines mismatch:\nExpected:\n%s\n\nGot:\n%s", expected, result)
+	}
+}

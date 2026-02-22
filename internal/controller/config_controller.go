@@ -17,6 +17,7 @@ import (
 
 	"github.com/zwindler/podsweeper/pkg/game"
 	"github.com/zwindler/podsweeper/pkg/grid"
+	"github.com/zwindler/podsweeper/pkg/level"
 	"github.com/zwindler/podsweeper/pkg/spawner"
 )
 
@@ -184,7 +185,7 @@ func (r *ConfigController) parseConfig(cm *corev1.ConfigMap) (level int, seed in
 }
 
 // handleGameStart starts a new game with the given configuration.
-func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.ConfigMap, level int, seed int64) (ctrl.Result, error) {
+func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.ConfigMap, lvl int, seed int64) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Create spawner for cleanup and spawning
@@ -192,15 +193,18 @@ func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.Confi
 		Namespace: r.Namespace,
 	})
 
+	// Create level manager for level-specific resources
+	levelMgr := level.NewManager(r.Client, r.Namespace)
+
 	// Generate seed if not provided
 	if seed == 0 {
 		seed = time.Now().UnixNano()
 	}
 
 	// Generate new game state
-	gameState, err := grid.GenerateForLevel(level, seed)
+	gameState, err := grid.GenerateForLevel(lvl, seed)
 	if err != nil {
-		logger.Error(err, "failed to generate game", "level", level)
+		logger.Error(err, "failed to generate game", "level", lvl)
 		return r.updateStatus(ctx, cm, "error", fmt.Sprintf("Failed to generate game: %v", err))
 	}
 
@@ -213,6 +217,12 @@ func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.Confi
 	if err := r.Store.Save(ctx, gameState); err != nil {
 		logger.Error(err, "failed to save game state")
 		return r.updateStatus(ctx, cm, "error", fmt.Sprintf("Failed to save state: %v", err))
+	}
+
+	// Apply level-specific resources (e.g., map ConfigMap for Level 0)
+	if err := levelMgr.ApplyLevel(ctx, gameState); err != nil {
+		logger.Error(err, "failed to apply level resources", "level", lvl)
+		// Continue anyway - level resources are "cheat" paths, not required for gameplay
 	}
 
 	// Cleanup existing game (now safe - new state already saved)
@@ -237,11 +247,11 @@ func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.Confi
 	}
 
 	// Update tracking
-	r.lastProcessedLevel = level
+	r.lastProcessedLevel = lvl
 	r.lastProcessedSeed = seed
 
 	logger.Info("game started successfully",
-		"level", level,
+		"level", lvl,
 		"seed", seed,
 		"size", gameState.Size,
 		"mines", gameState.MineCount,
@@ -251,7 +261,7 @@ func (r *ConfigController) handleGameStart(ctx context.Context, cm *corev1.Confi
 	// Clear the action field after processing
 	return r.updateStatusAndClearAction(ctx, cm, "playing",
 		fmt.Sprintf("Game started: Level %d, %dx%d grid, %d mines, seed %d",
-			level, gameState.Size, gameState.Size, gameState.MineCount, seed))
+			lvl, gameState.Size, gameState.Size, gameState.MineCount, seed))
 }
 
 // handleGameEnd ends the current game.
@@ -263,9 +273,17 @@ func (r *ConfigController) handleGameEnd(ctx context.Context) (ctrl.Result, erro
 		Namespace: r.Namespace,
 	})
 
+	// Create level manager for cleanup
+	levelMgr := level.NewManager(r.Client, r.Namespace)
+
 	// Cleanup pods
 	if err := gridSpawner.CleanupGrid(ctx); err != nil {
 		logger.Error(err, "failed to cleanup grid")
+	}
+
+	// Cleanup level-specific resources (map ConfigMap/Secret, etc.)
+	if err := levelMgr.Cleanup(ctx); err != nil {
+		logger.Error(err, "failed to cleanup level resources")
 	}
 
 	// Delete state
