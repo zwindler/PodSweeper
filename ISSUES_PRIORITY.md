@@ -137,9 +137,11 @@ This document outlines the recommended order for building PodSweeper incremental
 **Goal:** Production-ready quality for public release.
 
 ### CI/CD
-- [ ] GitHub Actions: Build and push gamemaster image
-- [ ] GitHub Actions: Build and push hint-agent image
-- [ ] Semantic versioning tags
+- [x] GitHub Actions: Build and push gamemaster image
+- [x] GitHub Actions: Build and push hint-agent image
+- [x] GitHub Actions: Build and push player-terminal image
+- [x] Semantic versioning tags
+- [x] Multi-arch builds (amd64, arm64)
 
 ### Health & Observability
 - [ ] Health endpoints (`/healthz`, `/readyz`)
@@ -155,6 +157,10 @@ This document outlines the recommended order for building PodSweeper incremental
 - [ ] Flag generation system for CTF scoring
 - [ ] Seed sharing for challenges
 - [ ] Installation verification script
+
+### Quality of Life / Polish
+- [ ] Make critical errors FATAL instead of ERROR (RBAC failures, CM creation failures)
+- [ ] Add more descriptive error messages for common issues
 
 ---
 
@@ -190,6 +196,23 @@ Start with:
 
 ## Recent Fixes
 
+### v0.1.2 (2026-02-22)
+- Fixed RBAC escalation: gamemaster now has all permissions it grants to players
+- Fixed cache timing: `EnsureConfigMap` now runs after manager starts
+- Added kubectl autocompletion to player terminal
+- Added `bash-completion` package to player image
+
+### v0.1.1 (2026-02-22)
+- Updated GitHub Actions to latest versions (checkout v6, setup-go v6, codecov v5)
+- Fixed golangci-lint compatibility with Go 1.26 (using v2.10.1)
+
+### v0.1.0 (2026-02-22)
+- First public release
+- CI/CD pipeline with GitHub Actions
+- Multi-arch container images (amd64, arm64)
+- Levels 0-4 complete
+
+### Earlier
 - Fixed race condition: Save game state BEFORE cleanup
 - Added `WaitForCleanup()` to wait for all pods to be deleted before spawning
 - Set `terminationGracePeriodSeconds=1` on all game pods (~2s vs ~30s termination)
