@@ -76,6 +76,12 @@ explosion  1/1     Running   1s    # <- 💥 BOOM!
 
 ---
 
+## Disclaimer
+
+> ⚠️ **PodSweeper is designed to be destructive within its own namespace.**
+> 
+> Do not run this in production unless you want to explain to your boss why you were playing Minesweeper with company infrastructure.
+
 ## Quick Start
 
 ### Prerequisites
@@ -231,14 +237,6 @@ Perfect for:
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## Disclaimer
-
-> ⚠️ **PodSweeper is designed to be destructive within its own namespace.**
-> 
-> Do not run this in production unless you want to explain to your boss why you were playing Minesweeper with company infrastructure.
 
 ---
 
