@@ -1,6 +1,6 @@
 # PodSweeper Player ServiceAccount
 # Players use this identity to interact with the game
-# Their only ability is to delete pods (click cells)
+# Their permissions are restricted based on the current level
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -10,8 +10,15 @@ metadata:
     app.kubernetes.io/name: podsweeper
     app.kubernetes.io/component: player
 ---
-# Role for players - very restricted
-# Can only list and delete pods in the game namespace
+# Role for players - Level 0 (The Intern)
+# Full access to "cheat" - can read the map ConfigMap directly
+#
+# As levels progress, the Gamemaster will update this Role to remove permissions:
+#   Level 1: Remove configmaps access (map moves to Secret)
+#   Level 2: Remove secrets access (map moves to pod env)
+#   Level 3: Remove exec on non-player pods (map in gamemaster only)
+#   Level 4+: Minimal permissions only
+#
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -21,22 +28,40 @@ metadata:
     app.kubernetes.io/name: podsweeper
     app.kubernetes.io/component: player
 rules:
-  # List pods to see the grid
+  # Core gameplay: see and delete pods
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch"]
-  # Delete pods to "click" cells
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["delete"]
-  # Port-forward to hint pods
+    verbs: ["get", "list", "watch", "delete"]
+
+  # Port-forward to hint pods (to read hint values)
   - apiGroups: [""]
     resources: ["pods/portforward"]
     verbs: ["create"]
-  # View pod logs (for hint pods)
+
+  # View pod logs (for hint pods, explosion, victory messages)
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+
+  # Exec into pods (needed for Level 2 cheat path)
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+
+  # Read ConfigMaps (Level 0 cheat: map ConfigMap)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+
+  # Read Secrets (Level 1 cheat: map Secret)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+
+  # View events (useful for debugging, required for Level 9)
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
 ---
 # Bind the Role to the player ServiceAccount
 apiVersion: rbac.authorization.k8s.io/v1

@@ -1,0 +1,25 @@
+
+    ____            ______                                  
+   / __ \____  ____/ / ___/      _____  ___  ____  ___  _____
+  / /_/ / __ \/ __  /\__ \ | /| / / _ \/ _ \/ __ \/ _ \/ ___/
+ / ____/ /_/ / /_/ /___/ / |/ |/ /  __/  __/ /_/ /  __/ /    
+/_/    \____/\__,_//____/|__/|__/\___/\___/ .___/\___/_/     
+                                         /_/                 
+
+Welcome to PodSweeper - The Kubernetes Minesweeper CTF!
+
+OBJECTIVE: Clear all safe cells without hitting a mine.
+
+COMMANDS:
+  kubectl get pods              - See the grid
+  kubectl delete pod pod-X-Y    - Click a cell
+  kubectl logs hint-X-Y         - Read hint (adjacent mine count)
+  kubectl get cm map -o yaml    - Level 0: Read the mine map (cheating!)
+
+TIPS:
+  - Mines are hidden in some pods
+  - Hint pods show how many mines are adjacent
+  - Empty cells trigger chain reactions
+
+Good luck, and may your deletes be safe!
+

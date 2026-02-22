@@ -9,6 +9,7 @@ resources:
   - gamemaster-rbac.yaml
   - gamemaster-deployment.yaml
   - player-rbac.yaml
+  - player-terminal.yaml
   - game-config.yaml
 
 labels:
@@ -21,6 +22,8 @@ images:
   - name: ghcr.io/zwindler/podsweeper-gamemaster
     newTag: dev
   - name: ghcr.io/zwindler/podsweeper-hint-agent
+    newTag: dev
+  - name: ghcr.io/zwindler/podsweeper-player-terminal
     newTag: dev
 
 # Patch to use :dev tag for hint-agent env var (kustomize images only transforms container images)

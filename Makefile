@@ -24,7 +24,7 @@ VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 # Kubernetes parameters
 NAMESPACE=podsweeper-game
 
-.PHONY: all build build-gamemaster build-hint-agent test test-coverage clean run run-gamemaster fmt vet lint deps tidy docker-build docker-push deploy undeploy help
+.PHONY: all build build-gamemaster build-hint-agent test test-coverage clean run run-gamemaster fmt vet lint deps tidy docker-build docker-push deploy undeploy help play
 
 ## Default target
 all: fmt vet test build
@@ -97,7 +97,7 @@ tidy:
 	$(GOMOD) tidy
 
 ## Build Docker images
-docker-build: docker-build-gamemaster docker-build-hint-agent
+docker-build: docker-build-gamemaster docker-build-hint-agent docker-build-player-terminal
 
 ## Build gamemaster Docker image
 docker-build-gamemaster:
@@ -109,8 +109,13 @@ docker-build-hint-agent:
 	@echo "Building hint-agent Docker image..."
 	$(CONTAINER_RUNTIME) build -t $(REGISTRY)/podsweeper-hint-agent:$(VERSION) -f build/hint-agent/Dockerfile --build-arg VERSION=$(VERSION) .
 
+## Build player-terminal Docker image
+docker-build-player-terminal:
+	@echo "Building player-terminal Docker image..."
+	$(CONTAINER_RUNTIME) build -t $(REGISTRY)/podsweeper-player-terminal:$(VERSION) -f build/player-terminal/Dockerfile build/player-terminal
+
 ## Push Docker images
-docker-push: docker-push-gamemaster docker-push-hint-agent
+docker-push: docker-push-gamemaster docker-push-hint-agent docker-push-player-terminal
 
 ## Push gamemaster Docker image
 docker-push-gamemaster:
@@ -121,6 +126,11 @@ docker-push-gamemaster:
 docker-push-hint-agent:
 	@echo "Pushing hint-agent Docker image..."
 	$(CONTAINER_RUNTIME) push $(REGISTRY)/podsweeper-hint-agent:$(VERSION)
+
+## Push player-terminal Docker image
+docker-push-player-terminal:
+	@echo "Pushing player-terminal Docker image..."
+	$(CONTAINER_RUNTIME) push $(REGISTRY)/podsweeper-player-terminal:$(VERSION)
 
 ## Generate code (for future CRDs if needed)
 generate:
@@ -151,6 +161,13 @@ start-level:
 game-status:
 	@kubectl get configmap podsweeper-config -n $(NAMESPACE) -o yaml | grep -E "^  (level|status|message|progress|gridSize|mines):"
 
+## Join the game as a player (exec into player terminal)
+play:
+	@echo "Joining PodSweeper as player..."
+	@kubectl get pod player -n $(NAMESPACE) > /dev/null 2>&1 || (echo "Player terminal not running. Deploying..." && kubectl apply -f deploy/base/player-terminal.yaml)
+	@kubectl wait --for=condition=Ready pod/player -n $(NAMESPACE) --timeout=30s 2>/dev/null || true
+	@kubectl exec -it player -n $(NAMESPACE) -- bash
+
 ## Show help
 help:
 	@echo "PodSweeper - The most impractical way to play Minesweeper"
@@ -171,8 +188,11 @@ help:
 	@echo "  lint                Run golangci-lint"
 	@echo ""
 	@echo "Docker Targets:"
-	@echo "  docker-build        Build all Docker images"
-	@echo "  docker-push         Push all Docker images"
+	@echo "  docker-build                 Build all Docker images"
+	@echo "  docker-build-gamemaster      Build gamemaster image"
+	@echo "  docker-build-hint-agent      Build hint-agent image"
+	@echo "  docker-build-player-terminal Build player terminal image"
+	@echo "  docker-push                  Push all Docker images"
 	@echo ""
 	@echo "Kubernetes Targets:"
 	@echo "  deploy              Deploy to Kubernetes cluster"
@@ -180,8 +200,7 @@ help:
 	@echo "  start-game          Start a new game at level 0"
 	@echo "  start-level         Start at specific level (LEVEL=N)"
 	@echo "  game-status         Show current game status"
+	@echo "  play                Join the game (exec into player terminal)"
 	@echo ""
-	@echo "Playing the game:"
-	@echo "  kubectl get pods -n podsweeper-game        # View the grid"
-	@echo "  kubectl delete pod pod-2-3 -n podsweeper-game  # Click cell"
-	@echo "  kubectl delete pod explosion -n podsweeper-game  # Restart"
+	@echo "Quick Start:"
+	@echo "  make deploy && make start-game && make play"

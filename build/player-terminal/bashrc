@@ -1,0 +1,41 @@
+# PodSweeper Player Terminal - Bash Configuration
+
+# Show welcome message on login
+cat /etc/motd
+
+# Custom prompt showing we're in the game
+export PS1='\[\033[1;32m\]podsweeper\[\033[0m\]> '
+
+# Convenience aliases
+alias k='kubectl'
+alias pods='kubectl get pods'
+alias grid='kubectl get pods -l app.kubernetes.io/component=cell'
+alias hints='kubectl get pods -l app.kubernetes.io/component=hint'
+alias click='kubectl delete pod'
+alias map='kubectl get cm map -o jsonpath="{.data.grid}" 2>/dev/null || kubectl get secret map -o jsonpath="{.data.grid}" 2>/dev/null | base64 -d'
+alias status='kubectl get cm podsweeper-config -o jsonpath="{.data}"'
+
+# Helper function to click a cell
+sweep() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage: sweep X Y"
+        echo "Example: sweep 2 3"
+        return 1
+    fi
+    kubectl delete pod "pod-$1-$2"
+}
+
+# Helper function to get hint value
+hint() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage: hint X Y"
+        echo "Example: hint 2 3"
+        return 1
+    fi
+    kubectl logs "hint-$1-$2" 2>/dev/null || echo "No hint pod at ($1,$2)"
+}
+
+# Show current level
+level() {
+    kubectl get cm podsweeper-config -o jsonpath='{.data.currentLevel}' 2>/dev/null || echo "0"
+}

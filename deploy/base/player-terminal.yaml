@@ -1,0 +1,46 @@
+# PodSweeper Player Terminal
+# Players exec into this pod to play the game with restricted RBAC
+#
+# Usage:
+#   kubectl exec -it player -n podsweeper-game -- bash
+#
+# To use a custom terminal image, edit the podsweeper-config ConfigMap:
+#   kubectl patch cm podsweeper-config -n podsweeper-game \
+#     --type merge -p '{"data":{"playerImage":"your-registry/your-image:tag"}}'
+#
+# Then restart the player pod:
+#   kubectl delete pod player -n podsweeper-game
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: player
+  namespace: podsweeper-game
+  labels:
+    app.kubernetes.io/name: podsweeper
+    app.kubernetes.io/component: player-terminal
+spec:
+  serviceAccountName: player
+  # Don't restart automatically - player controls when to rejoin
+  restartPolicy: Never
+  containers:
+  - name: terminal
+    # Default image - can be overridden via kustomize or manually
+    image: ghcr.io/zwindler/podsweeper-player-terminal:latest
+    imagePullPolicy: IfNotPresent
+    command: ["sleep", "infinity"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: false  # Need writable home for bash history
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
