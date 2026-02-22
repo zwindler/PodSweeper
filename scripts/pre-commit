@@ -1,0 +1,39 @@
+#!/bin/bash
+# PodSweeper pre-commit hook
+# Runs golangci-lint before allowing commits
+#
+# Install: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or run: make install-hooks
+
+set -e
+
+# Ensure common paths are available (brew, go, etc.)
+export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:/home/linuxbrew/.linuxbrew/bin:$HOME/go/bin"
+
+echo "Running pre-commit checks..."
+
+# Check if golangci-lint is installed
+if ! command -v golangci-lint &> /dev/null; then
+    echo "ERROR: golangci-lint is not installed"
+    echo "Install with: brew install golangci-lint"
+    echo "Or: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"
+    exit 1
+fi
+
+# Run golangci-lint
+echo "Running golangci-lint..."
+if ! golangci-lint run ./...; then
+    echo ""
+    echo "ERROR: golangci-lint found issues. Please fix them before committing."
+    exit 1
+fi
+
+# Run tests
+echo "Running tests..."
+if ! go test ./... -count=1 -short; then
+    echo ""
+    echo "ERROR: Tests failed. Please fix them before committing."
+    exit 1
+fi
+
+echo "All pre-commit checks passed!"

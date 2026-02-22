@@ -24,7 +24,7 @@ VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 # Kubernetes parameters
 NAMESPACE=podsweeper-game
 
-.PHONY: all build build-gamemaster build-hint-agent test test-coverage clean run run-gamemaster fmt vet lint deps tidy docker-build docker-push deploy undeploy help play
+.PHONY: all build build-gamemaster build-hint-agent test test-coverage clean run run-gamemaster fmt vet lint deps tidy docker-build docker-push deploy undeploy help play install-hooks
 
 ## Default target
 all: fmt vet test build
@@ -83,8 +83,15 @@ vet:
 ## Run golangci-lint (must be installed separately)
 lint:
 	@echo "Running linter..."
-	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
+	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Run: brew install golangci-lint" && exit 1)
 	golangci-lint run ./...
+
+## Install git pre-commit hooks
+install-hooks:
+	@echo "Installing git hooks..."
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "Pre-commit hook installed!"
 
 ## Download dependencies
 deps:
@@ -186,6 +193,7 @@ help:
 	@echo "  fmt                 Format Go code"
 	@echo "  vet                 Run go vet"
 	@echo "  lint                Run golangci-lint"
+	@echo "  install-hooks       Install git pre-commit hooks"
 	@echo ""
 	@echo "Docker Targets:"
 	@echo "  docker-build                 Build all Docker images"
