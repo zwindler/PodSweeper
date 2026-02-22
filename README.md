@@ -1,29 +1,86 @@
-# PodSweeper
+```
+    ____            __   _____                                      
+   / __ \____  ____/ /  / ___/      _____  ___  ____  ___  _____    
+  / /_/ / __ \/ __  /   \__ \ | /| / / _ \/ _ \/ __ \/ _ \/ ___/    
+ / ____/ /_/ / /_/ /   ___/ / |/ |/ /  __/  __/ /_/ /  __/ /        
+/_/    \____/\__,_/   /____/|__/|__/\___/\___/ .___/\___/_/         
+                                            /_/                      
+      +-+-+-+-+-+      __  __ _                                      
+      |.|.|X|.|.|     |  \/  (_)_ __   ___  _____      _____  ___ _ __ 
+      +-+-+-+-+-+     | |\/| | | '_ \ / _ \/ __\ \ /\ / / _ \/ _ \ '__|
+      |.|2|.|.|.|     | |  | | | | | |  __/\__ \\ V  V /  __/  __/ |   
+      +-+-+-+-+-+     |_|  |_|_|_| |_|\___||___/ \_/\_/ \___|\___|_|   
+      |.|.|1|X|.|                                                     
+      +-+-+-+-+-+     ...but in Kubernetes. With kubectl delete.     
+      |.|.|.|.|.|                                                     
+      +-+-+-+-+-+     💥 BOOM! You hit a mine! 💥                    
+```
 
-> **The most impractical, over-engineered, and chaotic way to play Minesweeper.**
+<p align="center">
+  <strong>The most impractical, over-engineered, and chaotic way to play Minesweeper.</strong>
+</p>
 
-**PodSweeper** is a cloud-native "deminer" game where the cells aren't boxes on a screen, but **live Pods** inside a Kubernetes cluster. To "click" on a cell, you don't use a mouse; you use `kubectl delete`.
+<p align="center">
+  <a href="https://github.com/zwindler/podsweeper/actions"><img src="https://img.shields.io/github/actions/workflow/status/zwindler/podsweeper/ci.yaml?branch=main&style=flat-square&logo=github&label=CI" alt="CI Status"></a>
+  <a href="https://goreportcard.com/report/github.com/zwindler/podsweeper"><img src="https://goreportcard.com/badge/github.com/zwindler/podsweeper?style=flat-square" alt="Go Report Card"></a>
+  <a href="https://github.com/zwindler/podsweeper/releases"><img src="https://img.shields.io/github/v/release/zwindler/podsweeper?style=flat-square&logo=github" alt="Release"></a>
+  <a href="https://github.com/zwindler/podsweeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/zwindler/podsweeper?style=flat-square" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#the-concept">Concept</a> •
+  <a href="#learning-through-hardening-ctf-mode">CTF Mode</a> •
+  <a href="#building-from-source">Build</a>
+</p>
 
 ---
 
-## Project Status: MVP Complete
+## What is PodSweeper?
 
-The core game is **playable**! You can:
-- Start a game and see a grid of pods
-- Delete pods to reveal cells
-- See hint pods with adjacent mine counts
-- Trigger chain reactions on empty cells (BFS propagation)
-- Win by clearing all safe cells
-- Lose by hitting a mine (with ASCII explosion art)
+**PodSweeper** is a cloud-native Minesweeper game where cells are **live Kubernetes Pods**. To "click" a cell, you don't use a mouse — you use `kubectl delete`.
 
-**Coming soon:** 10 hardening levels that turn the game into a Kubernetes CTF.
+```
+$ kubectl get pods -n podsweeper-game
+NAME       READY   STATUS    AGE
+pod-0-0    1/1     Running   5s
+pod-0-1    1/1     Running   5s
+pod-1-0    1/1     Running   5s
+hint-1-1   1/1     Running   3s    # <- You revealed this one!
+pod-2-0    1/1     Running   5s
+...
+
+$ kubectl delete pod pod-0-0 -n podsweeper-game
+pod "pod-0-0" deleted
+
+$ kubectl get pods -n podsweeper-game
+NAME       READY   STATUS    AGE
+explosion  1/1     Running   1s    # <- 💥 BOOM!
+```
+
+---
+
+## Project Status
+
+| Component | Status |
+|-----------|--------|
+| Core Game Engine | ✅ Complete |
+| Grid Generation | ✅ Complete |
+| Hint System (BFS) | ✅ Complete |
+| Victory/Defeat Detection | ✅ Complete |
+| Player Terminal | ✅ Complete |
+| Level 0-1 (Cheat Paths) | ✅ Complete |
+| Levels 2-4 (RBAC) | 🚧 In Progress |
+| Levels 5-9 (Webhook) | 📋 Planned |
+| CI/CD Pipeline | 📋 Planned |
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-- A Kubernetes cluster (kind, minikube, or any cluster you have access to)
+
+- A Kubernetes cluster ([kind](https://kind.sigs.k8s.io/), [minikube](https://minikube.sigs.k8s.io/), or any cluster)
 - `kubectl` configured to access the cluster
 
 ### Installation
@@ -37,72 +94,101 @@ cd podsweeper
 kubectl apply -k deploy/base/
 
 # Wait for the gamemaster to be ready
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=podsweeper -n podsweeper-game --timeout=60s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=podsweeper \
+  -n podsweeper-game --timeout=60s
 ```
 
-### Playing the Game
+### Play the Game
 
 ```bash
 # Start a new game
-kubectl patch configmap podsweeper-config -n podsweeper-game \
-  --type merge -p '{"data":{"action":"start"}}'
+make start-game
 
-# See the grid
-kubectl get pods -n podsweeper-game
-
-# "Click" a cell by deleting it
-kubectl delete pod pod-2-2 -n podsweeper-game
-
-# Check for hints (hint pods expose adjacent mine count)
-kubectl get pods -n podsweeper-game
-
-# If you hit a mine... BOOM! Check the explosion pod logs
-kubectl logs explosion -n podsweeper-game
-
-# Win by clearing all safe cells, then check the victory message
-kubectl logs victory -n podsweeper-game
+# Join the player terminal (recommended)
+make play
 ```
 
-### Grid Layout
+Inside the player terminal:
+```bash
+podsweeper> pods              # See the grid
+podsweeper> sweep 2 2         # Click cell at (2,2)
+podsweeper> hint 2 2          # Get hint value
+podsweeper> map               # Cheat! (Level 0 only)
+```
 
-The grid scales with difficulty level:
-- **Levels 0-4:** 5×5 grid with 4 mines (learning mode)
-- **Levels 5-7:** 10×10 grid with 15 mines (intermediate)
-- **Levels 8-9:** 20×20 grid with 60 mines (expert)
+Or play directly with kubectl:
+```bash
+kubectl get pods -n podsweeper-game                    # See the grid
+kubectl delete pod pod-2-2 -n podsweeper-game          # Click a cell
+kubectl logs hint-2-2 -n podsweeper-game               # Read hint
+kubectl logs explosion -n podsweeper-game              # See defeat message
+kubectl logs victory -n podsweeper-game                # See victory message
+```
+
+### Grid Sizes
+
+| Level | Grid | Mines | Difficulty |
+|-------|------|-------|------------|
+| 0-4 | 5×5 | 4 | Beginner |
+| 5-7 | 10×10 | 15 | Intermediate |
+| 8-9 | 20×20 | 60 | Expert |
 
 ---
 
 ## The Concept
 
-PodSweeper turns your Kubernetes namespace into a minefield.
+PodSweeper transforms your Kubernetes namespace into a minefield:
 
-1. **The Grid:** The Gamemaster (a Go-based controller) spawns a matrix of pods named `pod-x-y`.
-2. **The Action:** Deleting a pod is your way of "sweeping" the tile.
-   - **Safe Pod:** Replaced by a `hint-x-y` pod exposing the number of adjacent mines via HTTP.
-   - **Empty Area:** If no mines are nearby, a chain reaction (BFS) clears the area automatically.
-   - **Mined Pod:** The namespace "explodes" (all game pods wiped) and it's Game Over.
+```
+   0   1   2   3   4
+ +---+---+---+---+---+
+0| . | . | X | X | . |  X = Mine (hidden)
+ +---+---+---+---+---+  . = Safe cell
+1| . | . | . | . | X |  
+ +---+---+---+---+---+  Click a cell = kubectl delete pod
+2| . | . | . | . | . |  
+ +---+---+---+---+---+  Hit a mine = 💥 Game Over
+3| . | . | . | . | . |  
+ +---+---+---+---+---+  Clear all safe = 🎉 Victory!
+4| . | X | . | . | . |  
+ +---+---+---+---+---+
+```
+
+1. **The Grid:** The Gamemaster spawns a matrix of pods named `pod-x-y`
+2. **Safe Cell:** Replaced by `hint-x-y` showing adjacent mine count
+3. **Empty Area:** Chain reaction (BFS) auto-clears connected empty cells
+4. **Mine:** All pods explode, game over!
 
 ---
 
 ## Learning through Hardening (CTF Mode)
 
-PodSweeper isn't just a game; it's a **Kubernetes CTF**. The game features **10 levels of increasing difficulty**. 
+PodSweeper isn't just a game — it's a **Kubernetes CTF**. Each level hardens the cluster to prevent "cheating":
 
-As you progress, the Gamemaster hardens the cluster to prevent "cheating" and force you to master deeper K8s concepts:
-* **RBAC:** Access is stripped away, forcing you to find info in logs or events.
-* **NetworkPolicies:** Your "cheat" scripts are blocked by network isolation.
-* **Finalizers:** Deletions become sticky, requiring manual patches.
-* **Admission Webhooks:** A timing-based challenge where deletions are only accepted within a 100ms window.
+| Level | Name | Challenge |
+|-------|------|-----------|
+| 0 | The Intern | Map in plaintext ConfigMap |
+| 1 | The Junior | Map in Secret (Base64) |
+| 2 | The Infiltrator | Map in pod environment variables |
+| 3 | The Heart | Map only in Gamemaster pod |
+| 4 | Amnesia | No map leaks — play fair! |
+| 5 | The Firewall | NetworkPolicy blocks debug endpoint |
+| 6 | The Sand Grain | Finalizers make deletion sticky |
+| 7 | Port Hacking | Hints on randomized ports |
+| 8 | Firing Window | 100ms timing window for deletions |
+| 9 | RBAC Blackout | Info only via Kubernetes Events |
 
 ---
 
 ## Technical Stack
 
-- **Language:** Go
-- **Framework:** `controller-runtime` / `client-go`
-- **Architecture:** Kubernetes Controller watching Pod deletions (Webhook added for Levels 5-9)
-- **Deployment:** Kustomize manifests
-- **UI:** 100% terminal-based (`kubectl` + ASCII art)
+| Component | Technology |
+|-----------|------------|
+| Language | Go 1.26 |
+| Framework | controller-runtime / client-go |
+| Container Runtime | Podman / Docker |
+| Deployment | Kustomize |
+| Base Images | Alpine 3.23, distroless |
 
 ---
 
@@ -115,29 +201,51 @@ make build
 # Run tests
 make test
 
-# Build container images (requires podman or docker)
+# Build container images
 make docker-build
 
-# Deploy to kind cluster
-make docker-push  # loads images to kind
-kubectl apply -k deploy/base/
+# Load into kind cluster
+make docker-push
+
+# Deploy
+make deploy
+
+# Start playing
+make start-game && make play
 ```
 
 ---
 
 ## Why PodSweeper?
 
-Because running `kubectl delete pod` should be scary, and we wanted to make it fun. This project is perfect for:
-- **K8s Newbies:** Learn basic CLI and resources
-- **SREs/DevOps:** Test your scripting and troubleshooting skills under pressure
-- **Security Folks:** Understand how RBAC and Admission Controllers enforce policies
+Because `kubectl delete pod` should be **scary**, and we wanted to make it **fun**.
+
+Perfect for:
+- **K8s Beginners:** Learn kubectl and pod lifecycle
+- **SREs/DevOps:** Practice troubleshooting under pressure  
+- **Security Teams:** Understand RBAC and admission control
+- **Conference Demos:** Impressive and interactive!
+
+---
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
 ## Disclaimer
 
-PodSweeper is designed to be destructive within its own namespace. **Do not run this in a production cluster** unless you really want to explain to your boss why you were playing Minesweeper with the company's infrastructure.
+> ⚠️ **PodSweeper is designed to be destructive within its own namespace.**
+> 
+> Do not run this in production unless you want to explain to your boss why you were playing Minesweeper with company infrastructure.
 
 ---
 
-*Created with ❤️ during a few vibe coding sessions.*
+<p align="center">
+  <i>Created with ❤️ and too much coffee during vibe coding sessions.</i>
+</p>
+
+<p align="center">
+  <a href="https://github.com/zwindler/podsweeper/stargazers">⭐ Star us on GitHub!</a>
+</p>
