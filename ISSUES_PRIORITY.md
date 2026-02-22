@@ -9,8 +9,8 @@ This document outlines the recommended order for building PodSweeper incremental
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation (MVP) | **Complete** |
-| 2 | Level Progression (0-4) | Next Up |
-| 3 | Security Hardening + Webhook (5-9) | Not Started |
+| 2 | Level Progression (0-4) | **Complete** |
+| 3 | Security Hardening + Webhook (5-9) | Next Up |
 | 4 | Pre-Release Polish | Not Started |
 | 5 | Documentation & Release | Not Started |
 
