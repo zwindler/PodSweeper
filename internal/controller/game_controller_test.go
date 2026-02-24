@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -601,6 +602,187 @@ func TestGameHandlers_BFSPropagation(t *testing.T) {
 	}
 	if !hasBoundary {
 		t.Error("expected boundary cells adjacent to mine")
+	}
+}
+
+func TestGameHandlers_BFSDoesNotRevealMines(t *testing.T) {
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		Build()
+
+	store := game.NewMemoryStore()
+
+	// Create a 5x5 grid with mines scattered around
+	// M . . . M
+	// . . . . .
+	// . . M . .
+	// . . . . .
+	// M . . . M
+	state := game.NewGameState(5, 12345)
+	state.SetMine(0, 0)
+	state.SetMine(4, 0)
+	state.SetMine(2, 2)
+	state.SetMine(0, 4)
+	state.SetMine(4, 4)
+	_ = store.Save(ctx, state)
+
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
+
+	// Click on empty cell at (1,1) - BFS should propagate but NOT reveal mines
+	coords := game.Coordinate{X: 1, Y: 1}
+	_, err := handlers.HandleEmptyCell(ctx, state, coords)
+	if err != nil {
+		t.Fatalf("HandleEmptyCell returned error: %v", err)
+	}
+
+	loadedState, err := store.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load state: %v", err)
+	}
+
+	// Verify mines are NOT revealed
+	mineCoords := []game.Coordinate{
+		{X: 0, Y: 0},
+		{X: 4, Y: 0},
+		{X: 2, Y: 2},
+		{X: 0, Y: 4},
+		{X: 4, Y: 4},
+	}
+	for _, mc := range mineCoords {
+		if loadedState.IsRevealed(mc.X, mc.Y) {
+			t.Errorf("Mine at (%d,%d) should NOT be revealed after BFS", mc.X, mc.Y)
+		}
+	}
+
+	// Verify clicked cell IS revealed
+	if !loadedState.IsRevealed(1, 1) {
+		t.Error("Clicked cell (1,1) should be revealed")
+	}
+}
+
+func TestGameHandlers_BFSDoesNotTransformMinesIntoHints(t *testing.T) {
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		Build()
+
+	store := game.NewMemoryStore()
+
+	// Create a 4x4 grid with a mine in the middle
+	// . . . .
+	// . M . .
+	// . . . .
+	// . . . .
+	state := game.NewGameState(4, 12345)
+	state.SetMine(1, 1)
+	_ = store.Save(ctx, state)
+
+	// Record mine positions before BFS
+	minesBefore := make(map[string]bool)
+	for x := 0; x < state.Size; x++ {
+		for y := 0; y < state.Size; y++ {
+			if state.IsMine(x, y) {
+				minesBefore[fmt.Sprintf("%d,%d", x, y)] = true
+			}
+		}
+	}
+
+	handlers := NewGameHandlers(fakeClient, store, GameHandlersConfig{Namespace: testNamespace})
+
+	// Click on empty cell at (3,3) - far from mine, should trigger BFS
+	coords := game.Coordinate{X: 3, Y: 3}
+	_, err := handlers.HandleEmptyCell(ctx, state, coords)
+	if err != nil {
+		t.Fatalf("HandleEmptyCell returned error: %v", err)
+	}
+
+	loadedState, err := store.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load state: %v", err)
+	}
+
+	// Verify mines are still mines after BFS (not transformed into hints)
+	minesAfter := make(map[string]bool)
+	for x := 0; x < loadedState.Size; x++ {
+		for y := 0; y < loadedState.Size; y++ {
+			if loadedState.IsMine(x, y) {
+				minesAfter[fmt.Sprintf("%d,%d", x, y)] = true
+			}
+		}
+	}
+
+	// Compare mine maps
+	if len(minesBefore) != len(minesAfter) {
+		t.Errorf("Mine count changed: before=%d, after=%d", len(minesBefore), len(minesAfter))
+	}
+
+	for coord := range minesBefore {
+		if !minesAfter[coord] {
+			t.Errorf("Mine at %s was removed/transformed after BFS", coord)
+		}
+	}
+
+	// Explicitly check the mine is still a mine
+	if !loadedState.IsMine(1, 1) {
+		t.Error("Mine at (1,1) should still be a mine after BFS")
+	}
+}
+
+func TestGameHandlers_BFSLargeGrid(t *testing.T) {
+	store := game.NewMemoryStore()
+
+	// Create a 10x10 grid with mines only on the edges
+	// This tests BFS on a larger grid with a big empty center
+	state := game.NewGameState(10, 12345)
+
+	// Place mines around the perimeter
+	for i := 0; i < 10; i++ {
+		state.SetMine(i, 0) // top row
+		state.SetMine(i, 9) // bottom row
+		state.SetMine(0, i) // left column
+		state.SetMine(9, i) // right column
+	}
+
+	handlers := NewGameHandlers(nil, store, GameHandlersConfig{Namespace: testNamespace})
+
+	// Click in the center at (5,5) - should propagate through the interior
+	start := game.Coordinate{X: 5, Y: 5}
+	empty, boundary := handlers.bfsPropagation(state, start)
+
+	// The interior should have empty cells (8x8 inner area minus boundary)
+	// Interior is cells from (1,1) to (8,8)
+	if len(empty) == 0 {
+		t.Error("Expected empty cells in the interior of large grid")
+	}
+
+	// Boundary cells should be adjacent to the perimeter mines
+	if len(boundary) == 0 {
+		t.Error("Expected boundary cells adjacent to perimeter mines")
+	}
+
+	// Verify no mine coordinates appear in empty or boundary lists
+	for _, e := range empty {
+		if state.IsMine(e.X, e.Y) {
+			t.Errorf("Mine at (%d,%d) incorrectly included in empty cells", e.X, e.Y)
+		}
+	}
+	for _, b := range boundary {
+		if state.IsMine(b.X, b.Y) {
+			t.Errorf("Mine at (%d,%d) incorrectly included in boundary cells", b.X, b.Y)
+		}
+	}
+
+	// The total revealed area should cover the 8x8 interior (64 cells)
+	totalRevealed := len(empty) + len(boundary)
+	expectedInterior := 64 // 8x8 interior
+	if totalRevealed != expectedInterior {
+		t.Errorf("Expected %d interior cells, got %d (empty=%d, boundary=%d)",
+			expectedInterior, totalRevealed, len(empty), len(boundary))
 	}
 }
 

@@ -176,6 +176,38 @@ func TestAdjacentMines(t *testing.T) {
 	}
 }
 
+func TestAdjacentMinesDiagonalOnly(t *testing.T) {
+	state := NewGameState(5, 0)
+
+	// Place mines only on diagonals around (2,2)
+	// M . M
+	// . C .
+	// M . M
+	// where C is the center cell (2,2)
+	state.SetMine(1, 1) // top-left diagonal
+	state.SetMine(3, 1) // top-right diagonal
+	state.SetMine(1, 3) // bottom-left diagonal
+	state.SetMine(3, 3) // bottom-right diagonal
+
+	if count := state.AdjacentMines(2, 2); count != 4 {
+		t.Errorf("expected 4 diagonal adjacent mines, got %d", count)
+	}
+
+	// Test corner cell with only diagonal neighbor
+	state2 := NewGameState(3, 0)
+	state2.SetMine(1, 1) // center of 3x3 grid
+
+	// Corner (0,0) has only one diagonal neighbor at (1,1)
+	if count := state2.AdjacentMines(0, 0); count != 1 {
+		t.Errorf("expected 1 diagonal adjacent mine for corner, got %d", count)
+	}
+
+	// Edge cell (1,0) has (1,1) as direct neighbor
+	if count := state2.AdjacentMines(1, 0); count != 1 {
+		t.Errorf("expected 1 adjacent mine for edge cell, got %d", count)
+	}
+}
+
 func TestGetNeighbors(t *testing.T) {
 	state := NewGameState(5, 0)
 
