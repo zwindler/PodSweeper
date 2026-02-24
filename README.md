@@ -246,7 +246,7 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 ---
 
 <p align="center">
-  <i>Created with ❤️ and too much coffee during vibe coding sessions.</i>
+  <i>Created with ❤️ and a few LLM driven coding sessions.</i>
 </p>
 
 <p align="center">
