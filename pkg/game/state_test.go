@@ -506,11 +506,16 @@ func TestToVisualGrid(t *testing.T) {
 	state.SetMine(4, 1) // Row 1: . . . . X
 	state.SetMine(1, 4) // Row 4: . X . . .
 
-	expected := `. . X X .
-. . . . X
-. . . . .
-. . . . .
-. X . . .`
+	// Updated expected output with coordinate headers
+	expected := `   0 1 2 3 4  <- X (sweep X Y)
+ +----------
+0 | . . X X .
+1 | . . . . X
+2 | . . . . .
+3 | . . . . .
+4 | . X . . .
+^
+Y`
 
 	result := state.ToVisualGrid()
 	if result != expected {
@@ -521,9 +526,13 @@ func TestToVisualGrid(t *testing.T) {
 func TestToVisualGridEmpty(t *testing.T) {
 	state := NewGameState(3, 0)
 
-	expected := `. . .
-. . .
-. . .`
+	expected := `   0 1 2  <- X (sweep X Y)
+ +------
+0 | . . .
+1 | . . .
+2 | . . .
+^
+Y`
 
 	result := state.ToVisualGrid()
 	if result != expected {
@@ -538,8 +547,12 @@ func TestToVisualGridAllMines(t *testing.T) {
 	state.SetMine(0, 1)
 	state.SetMine(1, 1)
 
-	expected := `X X
-X X`
+	expected := `   0 1  <- X (sweep X Y)
+ +----
+0 | X X
+1 | X X
+^
+Y`
 
 	result := state.ToVisualGrid()
 	if result != expected {

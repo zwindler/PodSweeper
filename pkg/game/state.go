@@ -302,30 +302,66 @@ func (g *GameState) Stats() map[string]interface{} {
 
 // ToVisualGrid returns a visual representation of the mine map.
 // Mines are marked with 'X', safe cells with '.'.
-// The grid is oriented so that row 0 is the top (y=0) and column 0 is the left (x=0).
+// The grid includes coordinate headers so users know how to reference cells.
+// X (column) is horizontal, Y (row) is vertical.
+// To click a cell, use: sweep X Y (e.g., sweep 3 1 for column 3, row 1)
+//
 // Example output for a 5x5 grid:
 //
-//	. . X X .
-//	. . . . X
-//	. . . . .
-//	. . . . .
-//	. X . . .
+//	   0 1 2 3 4  <- X (sweep X Y)
+//	  +-----------
+//	0 | . . X X .
+//	1 | . . . . X
+//	2 | . . . . .
+//	3 | . . . . .
+//	4 | . X . . .
+//	^
+//	Y
 func (g *GameState) ToVisualGrid() string {
 	var result strings.Builder
+
+	// Determine width for coordinate labels (1 or 2 digits)
+	width := 1
+	if g.Size >= 10 {
+		width = 2
+	}
+
+	// Header row with X coordinates
+	result.WriteString(strings.Repeat(" ", width+2)) // Align with Y labels
+	for x := 0; x < g.Size; x++ {
+		if x > 0 {
+			result.WriteString(" ")
+		}
+		fmt.Fprintf(&result, "%*d", width, x)
+	}
+	result.WriteString("  <- X (sweep X Y)\n")
+
+	// Separator line
+	result.WriteString(strings.Repeat(" ", width))
+	result.WriteString("+")
+	for x := 0; x < g.Size; x++ {
+		result.WriteString(strings.Repeat("-", width+1))
+	}
+	result.WriteString("\n")
+
+	// Grid rows with Y labels
 	for y := 0; y < g.Size; y++ {
+		fmt.Fprintf(&result, "%*d | ", width, y)
 		for x := 0; x < g.Size; x++ {
 			if x > 0 {
 				result.WriteString(" ")
 			}
+			// Pad cell to match header width
 			if g.MineMap[x][y] {
-				result.WriteString("X")
+				fmt.Fprintf(&result, "%*s", width, "X")
 			} else {
-				result.WriteString(".")
+				fmt.Fprintf(&result, "%*s", width, ".")
 			}
 		}
-		if y < g.Size-1 {
-			result.WriteString("\n")
-		}
+		result.WriteString("\n")
 	}
+
+	// Footer to clarify Y axis
+	result.WriteString("^\nY")
 	return result.String()
 }

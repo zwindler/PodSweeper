@@ -65,11 +65,15 @@ func TestApplyLevel0(t *testing.T) {
 		t.Fatal("ConfigMap missing 'grid' key")
 	}
 
-	expected := `. . X X .
-. . . . X
-. . . . .
-. . . . .
-. X . . .`
+	expected := `   0 1 2 3 4  <- X (sweep X Y)
+ +----------
+0 | . . X X .
+1 | . . . . X
+2 | . . . . .
+3 | . . . . .
+4 | . X . . .
+^
+Y`
 
 	if grid != expected {
 		t.Errorf("Grid mismatch:\nExpected:\n%s\n\nGot:\n%s", expected, grid)
@@ -116,9 +120,13 @@ func TestApplyLevel1(t *testing.T) {
 
 	// The secret should have the grid data
 	// Note: fake client doesn't auto-convert StringData to Data, so check both
-	expected := `. . .
-. X .
-. . .`
+	expected := `   0 1 2  <- X (sweep X Y)
+ +------
+0 | . . .
+1 | . X .
+2 | . . .
+^
+Y`
 
 	var grid string
 	if data, ok := secret.Data[MapDataKey]; ok {
@@ -230,8 +238,12 @@ func TestApplyLevelUpdatesExisting(t *testing.T) {
 		t.Fatalf("Failed to get map ConfigMap: %v", err)
 	}
 
-	expected := `X .
-. .`
+	expected := `   0 1  <- X (sweep X Y)
+ +----
+0 | X .
+1 | . .
+^
+Y`
 
 	if cm.Data[MapDataKey] != expected {
 		t.Errorf("Grid not updated:\nExpected:\n%s\n\nGot:\n%s", expected, cm.Data[MapDataKey])
@@ -509,9 +521,14 @@ func TestApplyLevel3MapFile(t *testing.T) {
 		t.Fatalf("Failed to read map file: %v", err)
 	}
 
-	expected := `X . .
-. . .
-. . X`
+	// Updated expected output with coordinate headers
+	expected := `   0 1 2  <- X (sweep X Y)
+ +------
+0 | X . .
+1 | . . .
+2 | . . X
+^
+Y`
 
 	if string(content) != expected {
 		t.Errorf("Map file content mismatch:\nExpected:\n%s\n\nGot:\n%s", expected, string(content))
