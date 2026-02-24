@@ -196,6 +196,11 @@ Start with:
 
 ## Recent Fixes
 
+### v0.1.4 (2026-02-24)
+- Added coordinate headers to map display for clarity
+- Map output now shows X and Y axis labels to help correlate visual position with `sweep X Y` arguments
+- Fixed lint issues (use `fmt.Fprintf` instead of `WriteString(fmt.Sprintf(...))`)
+
 ### v0.1.3 (2026-02-22)
 - Updated golangci-lint-action from v6 to v7 (required for golangci-lint v2.x)
 - Fixed all golangci-lint issues (errcheck, staticcheck, unused)
